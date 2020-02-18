@@ -1,3 +1,5 @@
 .idea/
 index
 env/
+*.sqlite
+__pycache__
