@@ -1,6 +1,5 @@
 import os
 
-from CurbTheScreen import TrackedProgram
 
 ROOT_DIR_NAME = "CurbTheScreen"
 def get_base_loc(dir_name):
@@ -23,6 +22,6 @@ DB_LOC = os.path.join(ROOT_LOC, "database/db.sqlite")
 
 LOOP_TIME = 1
 TRACKED_PROGRAMS = [
-    # Format TrackedProgram.min_init([program name], [max running time seconds] )
-    TrackedProgram.min_init("Calculator", 10)
+    # Format ([program name], [max time])
+    ("Calculator", 10),
 ]
