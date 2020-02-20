@@ -90,12 +90,12 @@ class TrackedProgram:
         left = 0
 
         if self.start_time == 0 and self.end_time == 0 and self._time_left == 0:
-            return self.max_time
-        elif (self.start_time != 0 and self.end_time == 0) or (self.start_time != 0 and self.end_time != 0):
+            left = self.max_time
+        elif self.start_time != 0 and (self.end_time == 0 or self.end_time != 0):
             if self._time_left == 0:
-                return 0
+                left = 0
             else:
-                return self._time_left - self.elapsed_time
+                left = self._time_left - self.elapsed_time
 
         """if self.start_time == 0 and self.end_time == 0:
             left = self.max_time
@@ -109,6 +109,8 @@ class TrackedProgram:
 
         self._time_left = left
         return self._time_left"""
+        self._start_time = left
+        return self._start_time
 
     @time_left.setter
     def time_left(self, value):
@@ -225,12 +227,13 @@ class TrackedProgram:
 # How the programs that are tracked will be represented
 class Program(TrackedProgram):
 
-    def __init__(self, tracked):
-        super().__init__(tracked.name, tracked.max_time, tracked.start_time, tracked.end_time, tracked.time_remaining)
+    def __init__(self, tracked: TrackedProgram):
+        super().__init__(tracked.name, tracked.max_time, tracked.start_time, tracked.end_time, tracked.time_left)
         self.PIDS = []
 
     def add_pid(self, pid):
-        self.PIDS.append(pid)
+        if pid not in self.PIDS:
+            self.PIDS.append(pid)
 
     def reset_pids(self):
         self.PIDS = []
