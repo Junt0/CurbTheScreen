@@ -9,25 +9,22 @@ import Settings
 
 
 class TrackedProgram:
-    name = ""
-    max_time = 0
-    db_id = None
-
-    start_time = 0
-    end_time = 0
-    time_remaining = max_time
-    blocked = False
-
     def __init__(self, name, max_time, start, end, remaining):
-        self.name = name
-        self.max_time = max_time
-        self.start_time = start
-        self.end_time = end
-        self.time_remaining = remaining
         self.elapsed_time = 0
+        self.blocked = False
+        self.db_id = None
+
+        self._name = name
+        self._max_time = max_time
+        self._start_time = start
+        self._end_time = end
+        self.time_left = remaining
+
+        if self.is_valid() is False:
+            raise AttributeError("Initialized with an invalid attribute")
 
     @classmethod
-    def program_from_dict(cls, attrs):
+    def dict_init(cls, attrs):
         if attrs is None:
             return None
 
@@ -43,8 +40,77 @@ class TrackedProgram:
     def min_init(cls, name, max_time):
         return TrackedProgram(name, max_time, 0, 0, max_time)
 
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        self._name = value
+
+        if self._is_name_valid() is False:
+            raise ValueError("Invalid value assigned to max_time")
+
+    @property
+    def max_time(self):
+        return self._max_time
+
+    @max_time.setter
+    def max_time(self, value):
+        if self._is_float_or_int_not_neg(value):
+            self._max_time = float(value)
+        else:
+            raise ValueError("Invalid value assigned to max_time")
+
+    @property
+    def start_time(self):
+        return self._start_time
+
+    @start_time.setter
+    def start_time(self, value):
+        if self._is_float_or_int_not_neg(value):
+            self._start_time = float(value)
+        else:
+            raise ValueError("Invalid value assigned to start_time")
+
+    @property
+    def end_time(self):
+        return self._end_time
+
+    @end_time.setter
+    def end_time(self, value):
+        if self._is_float_or_int_not_neg(value):
+            self._end_time = float(value)
+        else:
+            raise ValueError("Invalid value assigned to end_time")
+
+    @property
+    def time_left(self):
+        left = 0
+
+        # When
+        if self.start_time == 0 and self.end_time == 0:
+            left = self.max_time
+        elif self.end_time == 0 and self.start_time != 0:
+            left = int(self._time_left - self.elapsed_time)
+        elif self.start_time != 0 and self.end_time != 0:
+            left = int(self._time_left - self.elapsed_time)
+
+        if left < 0:
+            left = 0
+
+        self._time_left = left
+        return self._time_left
+
+    @time_left.setter
+    def time_left(self, value):
+        if self._is_time_left_valid(value):
+            self._time_left = float(value)
+        else:
+            raise ValueError("Invalid value assigned to end_time")
+
     def start_now(self):
-        self.start_time = time.time()
+        self.start_time = int(time.time())
 
     def end_now(self):
         self.end_time = int(time.time())
@@ -56,37 +122,55 @@ class TrackedProgram:
         if self.end_time == 0:
             self.end_time = program_obj.end_time
 
-        self.time_remaining = program_obj.time_remaining
-        """
-        if self.time_remaining == 0:
-            self.blocked = True
-        else:
-            self.blocked = False
-            """
-
-    def time_left(self):
-        time_left = 0
-        if self.start_time == 0:
-            time_left = self.max_time
-        elif self.end_time == 0 and self.start_time != 0:
-            time_left = int(self.time_remaining - self.elapsed_time)
-        elif self.start_time != 0 and self.end_time != 0:
-            time_left = int(self.time_remaining - self.elapsed_time)
-
-        if time_left < 0:
-            time_left = 0
-
-        # self.time_remaining = time_left
-        return time_left
+        self.time_left = program_obj.time_left
 
     def is_valid(self):
-        name_valid = type(self.name) is str
-        max_time_valid = type(self.max_time) is int or type(self.max_time) is float or self.max_time is None
-        start_time_valid = type(self.start_time) is int or type(self.start_time) is float
-        end_time_valid = type(self.end_time) is int or type(self.end_time) is float
-        time_remaining_valid = type(self.time_remaining) is int or type(self.time_remaining) is float
-        db_id_valid = type(self.db_id) is int
-        return name_valid and max_time_valid and start_time_valid, end_time_valid, time_remaining_valid, db_id_valid
+        num_vars = [self.start_time, self.end_time, self.time_left, self.max_time]
+        return self._is_name_valid() and self._is_float_or_int_not_neg_arr(num_vars)
+
+    def _is_name_valid(self):
+        is_str = type(self.name) is str
+        return is_str
+
+    def _is_float_or_int_not_neg(self, value):
+        right_type = self._is_float(value) or self._is_int(value)
+
+        right_sign = False
+        if right_type:
+            right_sign = self._is_negative(value)
+
+        return right_type and right_sign and not self._is_none(value)
+
+    def _is_float_or_int_not_neg_arr(self, items):
+        for variable in items:
+            if self._is_float_or_int_not_neg(variable) is False:
+                return False
+        return True
+
+    def _is_float(self, value):
+        return type(value) is float
+
+    def _is_int(self, value):
+        return type(value) is int
+
+    def _is_negative(self, value):
+        return value >= 0
+
+    def _is_none(self, value):
+        return value is None
+
+    def _is_time_left_valid(self, left):
+        right_type = (type(left) is int or type(left) is float) is True and left is not None
+
+        right_sign = False
+        if right_type:
+            right_sign = left >= 0
+
+        return right_type and right_sign
+
+    def _is_db_id_valid(self):
+        # TODO check if id exists in db
+        pass
 
     def has_save(self):
         game_inst = DataManager.get_day(datetime.today(), limit=None, name=self.name)
@@ -118,7 +202,7 @@ class TrackedProgram:
         name_equal = other.name == self.name
         start_time_equal = other.start_time == self.start_time
         end_time_equal = other.end_time == self.end_time
-        max_time_equal = other.time_remaining == self.time_remaining
+        max_time_equal = other.time_remaining == self.time_left
         blocked_equal = other.blocked == self.blocked
 
         return blocked_equal and name_equal and start_time_equal and end_time_equal and max_time_equal
@@ -218,7 +302,7 @@ class DataManager:
 
     @classmethod
     def to_obj(cls, db_result):
-        program_obj = TrackedProgram.program_from_dict(db_result)
+        program_obj = TrackedProgram.dict_init(db_result)
         if db_result is None:
             return None
 
@@ -284,7 +368,7 @@ class DataManager:
                 try:
                     with cls.StoreData(cls) as db:
                         c = db.cursor()
-                        command = f"INSERT INTO program_log (name, start_time, end_time, time_remaining, max_time) VALUES('{program.name}', {int(program.start_time)}, {int(program.end_time)}, {int(program.time_remaining)}, {int(program.max_time)})"
+                        command = f"INSERT INTO program_log (name, start_time, end_time, time_remaining, max_time) VALUES('{program.name}', {int(program.start_time)}, {int(program.end_time)}, {int(program.__time_remaining)}, {int(program.max_time)})"
                         c.execute(command)
                 except sqlite3.Error as e:
                     print(f"An error occurred with the database: {e.args[0]}")
@@ -296,7 +380,7 @@ class DataManager:
         for program in program_objs:
             if isinstance(program, Program) or isinstance(program, TrackedProgram):
                 if program.is_valid():
-                    rows += f"('{program.name}', {int(program.start_time)}, {int(program.end_time)}, {int(program.time_remaining)}, {int(program.max_time)}),"
+                    rows += f"('{program.name}', {int(program.start_time)}, {int(program.end_time)}, {int(program.__time_remaining)}, {int(program.max_time)}),"
                 else:
                     raise Exception("The game object put in was not valid!")
         # removes ending comma
@@ -536,17 +620,23 @@ class ProgramStates:
         for pg in self.program_objs:
             pg.PIDS = []
 
-    def init_program_objs(self):
+    def tracked_from_settings(self):
+        programs = []
         for program in Settings.TRACKED_PROGRAMS:
+            programs.append(Program.min_init(program[0], program[1]))
+        return programs
+
+    def init_program_objs(self):
+        for program in self.tracked_from_settings():
             pg_obj = Program(program)
 
             # Gets the latest save that is available and if it has less time remaining update the old save
             if pg_obj.has_save():
                 save: TrackedProgram = pg_obj.get_latest_save()
                 if save is not None:
-                    pg_obj.time_remaining = save.time_remaining
+                    pg_obj.__time_remaining = save.__time_remaining
 
-                    if pg_obj.time_remaining == 0:
+                    if pg_obj.__time_remaining == 0:
                         pg_obj.blocked = True
                     else:
                         pg_obj.blocked = False
