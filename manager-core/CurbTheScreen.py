@@ -28,7 +28,7 @@ class TrackedProgram:
         if attrs is None:
             return None
 
-        program = TrackedProgram("", 0, 0, 0, 0)
+        program = TrackedProgram("", 1, 0, 0, 0)
         for key in attrs.keys():
             if key == "id":
                 setattr(program, f"db_{key}", attrs[key])
@@ -46,10 +46,11 @@ class TrackedProgram:
 
     @name.setter
     def name(self, value):
-        self._name = value
 
-        if self._is_name_valid() is False:
-            raise ValueError("Invalid value assigned to max_time")
+        if self._is_name_valid(value):
+            self._name = value
+        else:
+            raise ValueError("Invalid value assigned to name")
 
     @property
     def max_time(self):
@@ -57,7 +58,7 @@ class TrackedProgram:
 
     @max_time.setter
     def max_time(self, value):
-        if self._is_float_or_int_not_neg(value):
+        if self._is_max_time_valid(value):
             self._max_time = float(value)
         else:
             raise ValueError("Invalid value assigned to max_time")
@@ -88,10 +89,17 @@ class TrackedProgram:
     def time_left(self):
         left = 0
 
-        # When
-        if self.start_time == 0 and self.end_time == 0:
+        if self.start_time == 0 and self.end_time == 0 and self._time_left == 0:
+            return self.max_time
+        elif (self.start_time != 0 and self.end_time == 0) or (self.start_time != 0 and self.end_time != 0):
+            if self._time_left == 0:
+                return 0
+            else:
+                return self._time_left - self.elapsed_time
+
+        """if self.start_time == 0 and self.end_time == 0:
             left = self.max_time
-        elif self.end_time == 0 and self.start_time != 0:
+        elif self.start_time != 0 and self.end_time == 0:
             left = int(self._time_left - self.elapsed_time)
         elif self.start_time != 0 and self.end_time != 0:
             left = int(self._time_left - self.elapsed_time)
@@ -100,14 +108,14 @@ class TrackedProgram:
             left = 0
 
         self._time_left = left
-        return self._time_left
+        return self._time_left"""
 
     @time_left.setter
     def time_left(self, value):
-        if self._is_time_left_valid(value):
+        if self._is_float_or_int_not_neg(value):
             self._time_left = float(value)
         else:
-            raise ValueError("Invalid value assigned to end_time")
+            raise ValueError("Invalid value assigned to time_left")
 
     def start_now(self):
         self.start_time = int(time.time())
@@ -125,11 +133,26 @@ class TrackedProgram:
         self.time_left = program_obj.time_left
 
     def is_valid(self):
-        num_vars = [self.start_time, self.end_time, self.time_left, self.max_time]
-        return self._is_name_valid() and self._is_float_or_int_not_neg_arr(num_vars)
+        num_vars = [self.start_time, self.end_time, self._time_left]
 
-    def _is_name_valid(self):
-        is_str = type(self.name) is str
+        # if it has no start, it can't have an end
+        start_none_no_end = not (self.start_time == 0 and self.end_time != 0)
+
+        # can't have an elapsed time if there is no start
+        start_none_no_elapsed = not (self.start_time == 0 and self.elapsed_time != 0)
+
+        return self._is_name_valid(self.name) and self._is_max_time_valid(
+            self.max_time) and self._is_float_or_int_not_neg_arr(
+            num_vars) and start_none_no_end and start_none_no_elapsed
+
+    def _is_max_time_valid(self, value):
+        not_0 = value != 0
+        is_float_or_int = self._is_float_or_int_not_neg(value)
+
+        return not_0 and is_float_or_int
+
+    def _is_name_valid(self, value):
+        is_str = type(value) is str
         return is_str
 
     def _is_float_or_int_not_neg(self, value):
@@ -158,15 +181,6 @@ class TrackedProgram:
 
     def _is_none(self, value):
         return value is None
-
-    def _is_time_left_valid(self, left):
-        right_type = (type(left) is int or type(left) is float) is True and left is not None
-
-        right_sign = False
-        if right_type:
-            right_sign = left >= 0
-
-        return right_type and right_sign
 
     def _is_db_id_valid(self):
         # TODO check if id exists in db
@@ -202,7 +216,7 @@ class TrackedProgram:
         name_equal = other.name == self.name
         start_time_equal = other.start_time == self.start_time
         end_time_equal = other.end_time == self.end_time
-        max_time_equal = other.time_remaining == self.time_left
+        max_time_equal = other.max_time == self.max_time
         blocked_equal = other.blocked == self.blocked
 
         return blocked_equal and name_equal and start_time_equal and end_time_equal and max_time_equal
