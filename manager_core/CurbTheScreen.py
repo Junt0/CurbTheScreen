@@ -171,10 +171,6 @@ class TrackedProgram:
     def _is_none(self, value):
         return value is None
 
-    def _is_db_id_valid(self):
-        # TODO check if id exists in db
-        pass
-
     def has_save(self):
         game_inst = DataManager.get_day(datetime.today(), limit=None, name=self.name)
         if len(game_inst) is 0 or game_inst is None:
@@ -201,7 +197,6 @@ class TrackedProgram:
     def __str__(self):
         return f"{self.name} S:{self.start_time}  E:{self.end_time}  R:{self.time_left()}"
 
-    # TODO check changes did not break program
     def __eq__(self, other):
         name_equal = other.name == self.name
         start_time_equal = other.start_time == self.start_time
@@ -594,16 +589,19 @@ class ProgramStates:
 
     def update_elapsed(self):
         for pg in self.currently_running:
-            pg.elapsed_time += Settings.LOOP_TIME
+            pg.elapsed_time += self.get_loop_time()
+
+    def get_loop_time(self):
+        return Settings.LOOP_TIME
 
     def update_blocked(self):
         blocked = []
 
         for program in self.program_objs:
-            time_left = program.time_left()
+            time_left = program.time_left
             if time_left == 0 or program.blocked:
                 program.blocked = True
-                program.time_remaining = program.time_left()
+                program.time_remaining = time_left
                 blocked.append(program)
 
         return blocked
@@ -621,19 +619,10 @@ class ProgramStates:
         return programs
 
     def init_program_objs(self):
-        for program in self.tracked_from_settings():
+        for program in LoadData.load_saves(self.tracked_from_settings()):
             pg_obj = Program(program)
-
-            # Gets the latest save that is available and if it has less time remaining update the old save
-            if pg_obj.has_save():
-                save: TrackedProgram = pg_obj.get_latest_save()
-                pg_obj.time_left = save.time_left
-
-                if pg_obj.time_left == 0:
-                    pg_obj.blocked = True
-                else:
-                    pg_obj.blocked = False
-
+            if pg_obj.time_left == 0:
+                pg_obj.blocked = True
             self.program_objs.append(pg_obj)
 
     def populate_program_pids(self):
@@ -660,11 +649,14 @@ class ProgramStates:
 
 
 class LoadData:
+    # Gets initial states for program
     @classmethod
-    def program_states(cls, programs):
+    def load_saves(cls, programs):
         saves = []
         for pg in programs:
             loaded = pg.get_latest_save()
+            # If there is no save return the original object
+
             if loaded is None:
                 saves.append(pg)
             else:
@@ -674,7 +666,6 @@ class LoadData:
 
         return saves
 
-    # Loads initial states for program
 
 
 if __name__ == '__main__':

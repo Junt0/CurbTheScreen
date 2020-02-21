@@ -159,7 +159,6 @@ def test_update_pg(reset_db, default_init):
     assert from_db.end_time == end_time
 
 
-# TODO test datetime
 def test_date_range(reset_db, date_fixture):
     base, date1, date2, date3 = date_fixture['date_objs']
     test1, test2, test3, test4 = date_fixture['test_objs']
