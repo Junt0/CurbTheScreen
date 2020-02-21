@@ -2,12 +2,16 @@ import os
 import sqlite3
 import time
 from datetime import datetime, timedelta
+from pathlib2 import Path
+from typing import Union, List
+
 import psutil
 
 # Is a stripped down program object to differentiate between running programs and given programs to track
-import Settings
+from . import Settings
 
 
+# TODO add type hints for all classes
 class TrackedProgram:
     def __init__(self, name, max_time, start, end, remaining):
         self.elapsed_time = 0
@@ -31,7 +35,7 @@ class TrackedProgram:
         program = TrackedProgram("", 1, 0, 0, 0)
         for key in attrs.keys():
             if key == "id":
-                setattr(program, f"db_{key}", attrs[key])
+                setattr(program, "db_id", attrs[key])
                 continue
             setattr(program, key, attrs[key])
         return program
@@ -89,7 +93,7 @@ class TrackedProgram:
     def time_left(self):
         left = 0
 
-        if self.start_time == 0 and self.end_time == 0 and self._time_left == 0:
+        if self.start_time == 0 and self.end_time == 0:
             left = self.max_time
         elif self.start_time != 0 and (self.end_time == 0 or self.end_time != 0):
             if self._time_left == 0:
@@ -109,8 +113,8 @@ class TrackedProgram:
 
         self._time_left = left
         return self._time_left"""
-        self._start_time = left
-        return self._start_time
+        self._time_left = left
+        return self._time_left
 
     @time_left.setter
     def time_left(self, value):
@@ -124,15 +128,6 @@ class TrackedProgram:
 
     def end_now(self):
         self.end_time = int(time.time())
-
-    def update(self, program_obj):
-        if self.start_time == 0:
-            self.start_time = program_obj.start_time
-
-        if self.end_time == 0:
-            self.end_time = program_obj.end_time
-
-        self.time_left = program_obj.time_left
 
     def is_valid(self):
         num_vars = [self.start_time, self.end_time, self._time_left]
@@ -155,7 +150,8 @@ class TrackedProgram:
 
     def _is_name_valid(self, value):
         is_str = type(value) is str
-        return is_str
+        not_empty = is_str is not ""
+        return is_str and not_empty
 
     def _is_float_or_int_not_neg(self, value):
         right_type = self._is_float(value) or self._is_int(value)
@@ -214,14 +210,16 @@ class TrackedProgram:
     def __str__(self):
         return f"{self.name} S:{self.start_time}  E:{self.end_time}  R:{self.time_left()}"
 
+    # TODO check changes did not break program
     def __eq__(self, other):
         name_equal = other.name == self.name
         start_time_equal = other.start_time == self.start_time
         end_time_equal = other.end_time == self.end_time
         max_time_equal = other.max_time == self.max_time
         blocked_equal = other.blocked == self.blocked
+        time_left_equal = other.time_left == self.time_left
 
-        return blocked_equal and name_equal and start_time_equal and end_time_equal and max_time_equal
+        return blocked_equal and name_equal and start_time_equal and end_time_equal and max_time_equal and time_left_equal
 
 
 # How the programs that are tracked will be represented
@@ -244,17 +242,18 @@ class Program(TrackedProgram):
 
 # Stores any changes made into the database
 class DataManager:
+    path = None
 
     @classmethod
-    def init_db(cls):
-        db_path = ""
-        if Settings.TESTING:
+    def init_db(cls, path: Path):
+        DataManager.path = path / "test_db.sqlite"
+        """if Settings.TESTING:
             db_path = Settings.TESTING_DB_LOC
         else:
-            db_path = Settings.DB_LOC
+            db_path = Settings.DB_LOC"""
 
-        if os.path.isfile(db_path) is False:
-            db_file = open(db_path, "w+")
+        if cls.path.is_file() is False:
+            db_file = cls.path.open(mode="w+")
             db_file.close()
 
         cls.reset_db()
@@ -267,22 +266,23 @@ class DataManager:
 
     @classmethod
     def get_db(cls):
-        db = None
+        db = sqlite3.connect(DataManager.path, detect_types=sqlite3.PARSE_DECLTYPES)
 
-        if Settings.TESTING:
+        """if Settings.TESTING:
             db = sqlite3.connect(Settings.TESTING_DB_LOC, detect_types=sqlite3.PARSE_DECLTYPES)
         else:
             db = sqlite3.connect(Settings.DB_LOC, detect_types=sqlite3.PARSE_DECLTYPES)
-
+"""
         db.row_factory = sqlite3.Row
         return db
 
     class GetData:
         def __init__(self, dm):
-            if Settings.TESTING:
+            self.db = dm.get_db()
+            """if Settings.TESTING:
                 self.db = dm.get_test_db()
             else:
-                self.db = dm.get_db()
+                self.db = dm.get_db()"""
 
         def __enter__(self):
             return self.db
@@ -292,10 +292,11 @@ class DataManager:
 
     class StoreData:
         def __init__(self, dm):
-            if Settings.TESTING:
+            self.db = dm.get_db()
+            """if Settings.TESTING:
                 self.db = dm.get_test_db()
             else:
-                self.db = dm.get_db()
+                self.db = dm.get_db()"""
 
         def __enter__(self):
             return self.db
@@ -318,19 +319,8 @@ class DataManager:
                 print(f"An error occurred with the database: {e.args[0]}")
 
     @classmethod
-    def to_obj(cls, db_result):
-        program_obj = TrackedProgram.dict_init(db_result)
-        if db_result is None:
-            return None
-
-        if program_obj.is_valid():
-            return program_obj
-        else:
-            raise Exception("The program object was invalid!")
-
-    @classmethod
-    def chain_and_helper(cls, params):
-        # Goes through filtering params and adds them to the chain
+    def _chain_filter_helper(cls, params, separator):
+        # Goes through filtering AND params and returns a string of filtering AND statements to be used in a command
         filter_count = 0
         chain_where = ""
 
@@ -341,66 +331,43 @@ class DataManager:
                 chain_where += f"{key}={value}"
 
             if filter_count != len(params.keys()) - 1:
-                chain_where += " AND "
+                chain_where += separator
 
             filter_count += 1
         return chain_where
 
     @classmethod
-    def get(cls, **query_params):
-        if len(query_params.keys()) == 0:
+    def to_obj(cls, db_result):
+        program_obj = TrackedProgram.dict_init(db_result)
+        if db_result is None:
             return None
 
-        query = f"SELECT * FROM program_log WHERE {cls.chain_and_helper(query_params)} LIMIT 1;"
-        result = DataManager.query(query, single=True)
-        return cls.to_obj(result)
+        if program_obj.is_valid():
+            return program_obj
+        else:
+            raise AttributeError("The program object from db was invalid")
 
     @classmethod
-    def update_pg(cls, id, **values):
-        set_vals = ""
-        count = 0
-        for key, value in values.items():
-            if type(value) is str:
-                set_vals += f"{key}='{value}'"
-            else:
-                set_vals += f"{key}={value}"
-
-            if count != len(values.keys()) - 1:
-                set_vals += ", "
-
-            count += 1
-
-        command = f"UPDATE program_log SET {set_vals} WHERE id={id};"
-        try:
-            with cls.StoreData(cls) as db:
-                conn = db.cursor()
-                conn.execute(command)
-        except sqlite3.Error as e:
-            print(f"An error occurred with the database: {e.args[0]}")
+    def store_new(cls, program: Union[Program, TrackedProgram]):
+        if program.is_valid():
+            try:
+                with cls.StoreData(cls) as db:
+                    c = db.cursor()
+                    command = f"INSERT INTO program_log (name, start_time, end_time, time_left, max_time) VALUES('{program.name}', {int(program.start_time)}, {int(program.end_time)}, {int(program.time_left)}, {int(program.max_time)}) "
+                    c.execute(command)
+            except sqlite3.Error as e:
+                print(f"An error occurred with the database: {e.args[0]}")
 
     @classmethod
-    def store_new(cls, program):
-        if isinstance(program, Program) or isinstance(program, TrackedProgram):
-            if program.is_valid():
-                try:
-                    with cls.StoreData(cls) as db:
-                        c = db.cursor()
-                        command = f"INSERT INTO program_log (name, start_time, end_time, time_remaining, max_time) VALUES('{program.name}', {int(program.start_time)}, {int(program.end_time)}, {int(program.__time_remaining)}, {int(program.max_time)})"
-                        c.execute(command)
-                except sqlite3.Error as e:
-                    print(f"An error occurred with the database: {e.args[0]}")
-
-    @classmethod
-    def store_many(cls, *program_objs):
-        query = f"INSERT INTO program_log (name, start_time, end_time, time_remaining, max_time) VALUES "
+    def store_many(cls, *program_objs: TrackedProgram):
+        query = f"INSERT INTO program_log (name, start_time, end_time, time_left, max_time) VALUES "
         rows = ""
         for program in program_objs:
-            if isinstance(program, Program) or isinstance(program, TrackedProgram):
-                if program.is_valid():
-                    rows += f"('{program.name}', {int(program.start_time)}, {int(program.end_time)}, {int(program.__time_remaining)}, {int(program.max_time)}),"
-                else:
-                    raise Exception("The game object put in was not valid!")
-        # removes ending comma
+            if program.is_valid():
+                rows += f"('{program.name}', {int(program.start_time)}, {int(program.end_time)}, {int(program.time_left)}, {int(program.max_time)}),"
+            else:
+                raise AttributeError("TrackedProgram has an invalid attribute value")
+        # removes ending comma from string
         rows = rows[0:len(rows) - 1]
 
         try:
@@ -411,17 +378,20 @@ class DataManager:
             print(f"An error occurred with the database: {e.args[0]}")
 
     @classmethod
-    def id_of_obj(cls, program):
-        obj = cls.get(start_time=program.start_time, name=program.name)
-        if obj is not None:
-            return obj.db_id
+    def get(cls, **and_filters):
+        if len(and_filters.keys()) == 0:
+            return None
+
+        query = f"SELECT * FROM program_log WHERE {cls._chain_filter_helper(and_filters, ' AND ')} LIMIT 1;"
+        result = DataManager.query(query, single=True)
+        return cls.to_obj(result)
 
     @classmethod
     def get_many(cls, limit=5, **query_params):
         query = "SELECT * FROM program_log"
 
         if len(query_params) != 0:
-            query += f" WHERE {cls.chain_and_helper(query_params)}"
+            query += f" WHERE {cls._chain_filter_helper(query_params, ' AND ')}"
 
         if limit is not None and type(limit) is int:
             query += f" LIMIT {limit};"
@@ -438,20 +408,40 @@ class DataManager:
         return program_objs
 
     @classmethod
-    def get_date_range(cls, start, end, limit=5, **query_params):
-        epoch1 = start.timestamp()
-        epoch2 = end.timestamp()
+    def update_pg(cls, pk, **values):
+        # Check value isn't being updated
+        if "id" in values.keys():
+            del values['id']
+
+        command = f"UPDATE program_log SET {cls._chain_filter_helper(values, ', ')} WHERE id={pk};"
+        try:
+            with cls.StoreData(cls) as db:
+                conn = db.cursor()
+                conn.execute(command)
+        except sqlite3.Error as e:
+            print(f"An error occurred with the database: {e.args[0]}")
+
+    @classmethod
+    def id_of_obj(cls, program):
+        obj = cls.get(start_time=program.start_time, name=program.name)
+        if obj is not None:
+            return obj.db_id
+
+    @classmethod
+    def get_date_range(cls, start: datetime, end: datetime, limit=5, **query_params):
+        epoch_time1 = start.timestamp()
+        epoch_time2 = end.timestamp()
 
         query = ""
         if len(query_params.keys()) != 0:
-            query = f"SELECT * FROM program_log WHERE start_time >= {epoch1} AND end_time <= {epoch2} AND {cls.chain_and_helper(query_params)}"
+            query = f"SELECT * FROM program_log WHERE start_time >= {epoch_time1} AND end_time <= {epoch_time2} AND {cls._chain_filter_helper(query_params, ' AND ')}"
         else:
-            query = f"SELECT * FROM program_log WHERE start_time >= {epoch1} AND start_time <= {epoch2}"
+            query = f"SELECT * FROM program_log WHERE start_time >= {epoch_time1} AND start_time <= {epoch_time2}"
 
         if limit is not None and limit is int:
             query += f" LIMIT {limit};"
         else:
-            query += f";"
+            query += ";"
 
         programs = []
         results = cls.query(query, single=False)
@@ -466,20 +456,16 @@ class DataManager:
     @classmethod
     def get_day(cls, day, limit=5, **query_params):
         start = datetime(day.year, day.month, day.day)
-        end = start + timedelta(hours=24)
+        end = start + timedelta(hours=23, minutes=59, seconds=59)
 
         return cls.get_date_range(start, end, limit, **query_params)
-
-    # store tracked program data
-    @classmethod
-    def log_started(cls, log_start):
-        for item in log_start:
-            cls.store_new(item)
 
     @classmethod
     def log_ended(cls, log_end):
         for item in log_end:
             last_save = item.get_latest_save()
+            assert last_save is not None, "Tried to end a running game with no save"
+
             cls.update_pg(cls.id_of_obj(last_save), end_time=item.end_time, time_remaining=item.time_left())
 
 
@@ -540,7 +526,7 @@ class StateLogger:
 
     def log_started(self, to_log):
         self.set_starts(to_log)
-        DataManager.log_started(to_log)
+        DataManager.store_many(*to_log)
 
     def log_end(self, to_log):
         self.set_ends(to_log)

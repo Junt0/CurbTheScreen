@@ -2,18 +2,16 @@ from unittest.mock import patch
 
 import pytest
 import time
-from CurbTheScreen import TrackedProgram, Program
+from manager_core.CurbTheScreen import TrackedProgram, Program
+
+# Tests to be added:
+# TODO Check is_valid() is called on object initialization, raised exception if invalid
+# TODO Add is_valid() start_none_no_end, start_none_no_elapsed tests
 
 
 @pytest.fixture
 def blank():
     return TrackedProgram("test", 1, 0, 0, 0)
-
-
-@pytest.fixture
-def default_init():
-    return TrackedProgram.min_init("test", 100)
-
 
 @pytest.fixture
 def dict_params():
@@ -69,8 +67,6 @@ class TestTrackedProgram:
         assert pg.time_left == 0.0
         assert pg.blocked is False
 
-    # TODO add is valid edge case
-
     # test minimum initialization of TrackedProgram
     def test_min_init(self, ):
         pg = TrackedProgram.min_init("test", 10)
@@ -96,7 +92,7 @@ class TestTrackedProgram:
     # test start now
     def test_start_now(self, default_init):
         start_time = int(time.time())
-        with patch("manager-core.CurbTheScreen.time.time") as mocked_time:
+        with patch("manager_core.CurbTheScreen.time.time") as mocked_time:
             mocked_time.return_value = start_time
             default_init.start_now()
             assert default_init.start_time == start_time
@@ -104,34 +100,10 @@ class TestTrackedProgram:
     # test end now
     def test_end_now(self, default_init):
         end_time = int(time.time())
-        with patch("manager-core.CurbTheScreen.time.time") as mocked_time:
+        with patch("manager_core.CurbTheScreen.time.time") as mocked_time:
             mocked_time.return_value = end_time
             default_init.end_now()
             assert default_init.end_time == end_time
-
-    # test update from other object
-    @pytest.mark.skip("update method has no usages")
-    def test_update(self, ):
-        # When first object has blanks
-        blank = TrackedProgram("test", 1, 0, 0, 0)
-        update_obj = TrackedProgram("test", 10, 20, 30, 40)
-        blank.update(update_obj)
-
-        assert blank.start_time == update_obj.start_time
-        assert blank.end_time == update_obj.end_time
-        assert blank.time_left == update_obj.time_left
-
-        # When first object has all filled
-        start = 20
-        end = 30
-        filled = TrackedProgram("test", 10, start, end, 40)
-        update_obj = TrackedProgram("test", 50, 60, 70, 80)
-        filled.update(update_obj)
-
-        assert filled.start_time == start
-        assert filled.end_time == end
-        # time remaining is always updated regardless if its filled
-        assert filled.time_left == update_obj.time_left
 
     # default max time for test is 10 seconds
     @pytest.mark.parametrize("start, end, time_left, expected", [
@@ -168,6 +140,19 @@ class TestTrackedProgram:
         program = TrackedProgram("test", 10, start, end, time_left)
         program.elapsed_time = elapsed
         assert program.time_left == expected
+
+    @pytest.mark.parametrize("name, blocked, start, end, max_time, time_left, expected", [
+        ("test", False, 0, 0, 100, 100, True),
+        ("test", False, 0, 0, 100, 0, True),
+        ("test", True, 0, 0, 100, 100, False),
+        ("not right", False, 0, 0, 100, 100, False),
+        ("test", False, 1, 0, 100, 100, False),
+    ])
+    def test_equal(self, default_init, name, blocked, start, end, max_time, time_left, expected):
+        pg1 = TrackedProgram(name, max_time, start, end, time_left)
+        pg1.blocked = blocked
+        result = pg1 == default_init
+        assert result == expected
 
 
 @pytest.fixture()
