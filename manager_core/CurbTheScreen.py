@@ -22,6 +22,7 @@ class TrackedProgram:
         self._max_time = max_time
         self._start_time = start
         self._end_time = end
+
         self.time_left = remaining
 
         if self.is_valid() is False:
@@ -94,32 +95,22 @@ class TrackedProgram:
         left = 0
 
         if self.start_time == 0 and self.end_time == 0:
-            left = self.max_time
+            if self.max_time != self._time_left:
+                left = self._time_left
+            else:
+                left = self.max_time
         elif self.start_time != 0 and (self.end_time == 0 or self.end_time != 0):
             if self._time_left == 0:
                 left = 0
             else:
                 left = self._time_left - self.elapsed_time
 
-        """if self.start_time == 0 and self.end_time == 0:
-            left = self.max_time
-        elif self.start_time != 0 and self.end_time == 0:
-            left = int(self._time_left - self.elapsed_time)
-        elif self.start_time != 0 and self.end_time != 0:
-            left = int(self._time_left - self.elapsed_time)
-
-        if left < 0:
-            left = 0
-
-        self._time_left = left
-        return self._time_left"""
-        self._time_left = left
-        return self._time_left
+        return left
 
     @time_left.setter
     def time_left(self, value):
         if self._is_float_or_int_not_neg(value):
-            self._time_left = float(value)
+            self._time_left = value
         else:
             raise ValueError("Invalid value assigned to time_left")
 
@@ -130,7 +121,7 @@ class TrackedProgram:
         self.end_time = int(time.time())
 
     def is_valid(self):
-        num_vars = [self.start_time, self.end_time, self._time_left]
+        num_vars = [self.start_time, self.end_time, self.time_left]
 
         # if it has no start, it can't have an end
         start_none_no_end = not (self.start_time == 0 and self.end_time != 0)
@@ -158,7 +149,7 @@ class TrackedProgram:
 
         right_sign = False
         if right_type:
-            right_sign = self._is_negative(value)
+            right_sign = not self._is_negative(value)
 
         return right_type and right_sign and not self._is_none(value)
 
@@ -175,7 +166,7 @@ class TrackedProgram:
         return type(value) is int
 
     def _is_negative(self, value):
-        return value >= 0
+        return value < 0
 
     def _is_none(self, value):
         return value is None
@@ -636,13 +627,12 @@ class ProgramStates:
             # Gets the latest save that is available and if it has less time remaining update the old save
             if pg_obj.has_save():
                 save: TrackedProgram = pg_obj.get_latest_save()
-                if save is not None:
-                    pg_obj.__time_remaining = save.__time_remaining
+                pg_obj.time_left = save.time_left
 
-                    if pg_obj.__time_remaining == 0:
-                        pg_obj.blocked = True
-                    else:
-                        pg_obj.blocked = False
+                if pg_obj.time_left == 0:
+                    pg_obj.blocked = True
+                else:
+                    pg_obj.blocked = False
 
             self.program_objs.append(pg_obj)
 

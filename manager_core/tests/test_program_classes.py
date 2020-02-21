@@ -56,6 +56,26 @@ class TestTrackedProgram:
         blank._time_left = time_left
         assert blank._is_float_or_int_not_neg(blank._time_left) == expected
 
+    def test_time_left_setter(self):
+        pg = TrackedProgram.min_init("test1", 90)
+        pg.time_left = 100
+        assert pg.time_left == 100
+
+    def test_name_setter(self):
+        pg = TrackedProgram.min_init("test1", 90)
+        pg.name = "test2"
+        assert pg.name == "test2"
+
+    def test_start_time_setter(self):
+        pg = TrackedProgram.min_init("test1", 90)
+        pg.start_time = 100
+        assert pg.start_time == 100
+
+    def test_max_time_setter(self):
+        pg = TrackedProgram.min_init("test1", 90)
+        pg.max_time = 100
+        assert pg.max_time == 100
+
     # test full initialization of TrackedProgram
     def test_init(self, ):
         pg = TrackedProgram("test", 2, 1, 2, 0)
@@ -107,7 +127,7 @@ class TestTrackedProgram:
 
     # default max time for test is 10 seconds
     @pytest.mark.parametrize("start, end, time_left, expected", [
-        (0, 0, 0, 10),
+        (0, 0, 0, 0),
         (20, 0, 0, 0),
         (20, 0, 5, 5),
         (20, 30, 0, 0),
@@ -125,11 +145,12 @@ class TestTrackedProgram:
 
     # default max time for test is 10 seconds
     @pytest.mark.parametrize("start, end, time_left, elapsed, expected", [
-        (0, 0, 0, 5, 10),
         (20, 0, 0, 5, 0),
         (20, 0, 10, 5, 5),
         (20, 30, 0, 5, 0),
         (20, 30, 10, 5, 5),
+        (0, 0, 10, 0, 10),
+        (0, 0, 5, 0, 5),
     ])
     def test_time_left_w_elapsed(self, start, end, time_left, elapsed, expected):
         # 1. No start, no end, no time left, has elapsed (impossible)
@@ -137,13 +158,15 @@ class TestTrackedProgram:
         # 3. Has start, no end, has time left, has elapsed
         # 4. Has start, has end, has no time left, has elapsed
         # 5. Has start, has end, has time left, has elapsed
+        # 6. No start, no end, time left as max time, no elapsed
+        # 6. No start, no end, time left not as max tim, no elapsed
         program = TrackedProgram("test", 10, start, end, time_left)
         program.elapsed_time = elapsed
         assert program.time_left == expected
 
     @pytest.mark.parametrize("name, blocked, start, end, max_time, time_left, expected", [
         ("test", False, 0, 0, 100, 100, True),
-        ("test", False, 0, 0, 100, 0, True),
+        ("test", False, 0, 0, 100, 0, False),
         ("test", True, 0, 0, 100, 100, False),
         ("not right", False, 0, 0, 100, 100, False),
         ("test", False, 1, 0, 100, 100, False),
