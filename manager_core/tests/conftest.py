@@ -1,5 +1,7 @@
+from unittest.mock import patch
+
 import pytest
-from manager_core.CurbTheScreen import DataManager, TrackedProgram
+from manager_core.CurbTheScreen import DataManager, TrackedProgram, ProgramStates
 
 
 @pytest.fixture(scope="session")
@@ -19,6 +21,7 @@ def reset_db(create_db):
 def default_init():
     return TrackedProgram.min_init("test", 100)
 
+
 @pytest.fixture
 def dict_params():
     attributes = {
@@ -30,3 +33,19 @@ def dict_params():
         'blocked': False
     }
     return attributes
+
+
+@pytest.fixture(scope="function")
+def program_class_fixture():
+    test1 = TrackedProgram('test1', 100, 0, 0, 100)
+    test2 = TrackedProgram('test2', 50, 0, 0, 50)
+    test3 = TrackedProgram('test3', 25, 0, 0, 25)
+    return test1, test2, test3
+
+
+@pytest.fixture
+def states_fixture_empty():
+    with patch('manager_core.CurbTheScreen.ProgramStates.init_program_objs') as patched:
+        patched.return_value = []
+        ps = ProgramStates()
+        return ps

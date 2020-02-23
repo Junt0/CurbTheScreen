@@ -19,7 +19,8 @@ setup(
         'numpy==1.16.4',
         'psutil==5.6.7',
         'Werkzeug==0.16.0',
-        'pytest==5.3.5'
+        'pytest==5.3.5',
+        'pathlib2==2.3.5'
     ],
 
 )

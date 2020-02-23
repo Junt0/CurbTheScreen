@@ -4,3 +4,4 @@ env/
 *.sqlite
 __pycache__
 .vscode/
+venv/

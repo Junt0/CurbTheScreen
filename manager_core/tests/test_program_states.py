@@ -5,22 +5,6 @@ import time
 from manager_core.CurbTheScreen import TrackedProgram, Program, ProgramStates, DataManager
 
 
-@pytest.fixture(scope="function")
-def program_class_fixture():
-    test1 = TrackedProgram('test1', 100, 0, 0, 100)
-    test2 = TrackedProgram('test2', 50, 0, 0, 50)
-    test3 = TrackedProgram('test3', 25, 0, 0, 25)
-    return test1, test2, test3
-
-
-@pytest.fixture
-def states_fixture_empty():
-    with patch('manager_core.CurbTheScreen.ProgramStates.init_program_objs') as patched:
-        patched.return_value = []
-        ps = ProgramStates()
-        return ps
-
-
 @pytest.fixture
 def states_fixture_full(states_fixture_empty, program_class_fixture):
     ps = states_fixture_empty
@@ -67,22 +51,6 @@ def test_init_program_objs_with_save_no_db(time_left, expected_left, expected_bl
                 assert ps.program_objs[0].blocked == expected_block
 
 
-def test_get_program_(program_class_fixture, states_fixture_empty):
-    # Tests that a program object with the same name is retrieved from the program_objs
-
-    test1, test2, test3 = program_class_fixture
-    ps = states_fixture_empty
-    ps.program_objs = program_class_fixture
-
-    t1_empty = TrackedProgram.min_init("test1", 1)
-    t2_empty = TrackedProgram.min_init("test2", 2)
-    t3_empty = TrackedProgram.min_init("test3", 3)
-
-    assert ps.get_program(t1_empty) == test1
-    assert ps.get_program(t2_empty) == test2
-    assert ps.get_program(t3_empty) == test3
-
-
 def test_update_elapsed(program_class_fixture, states_fixture_empty):
     # Tests that for all programs that are in currently running the elapsed time is increased when method is called
     test1, test2, test3 = program_class_fixture
@@ -118,25 +86,10 @@ def test_reset(program_class_fixture):
                 assert program.PIDS == []
 
 
-def test_update_blocked(program_class_fixture, states_fixture_empty):
-    # Tests that they are added to the block when they have blocked=True
-    program_arr = []
-    for program in program_class_fixture:
-        pg = Program(program)
-        pg.blocked = True
-        program_arr.append(pg)
-
-    ps = states_fixture_empty
-    ps.program_objs = program_arr
-
-    assert ps.update_blocked() == program_arr
-
-
 def test_populate_program_pids(states_fixture_full):
     ps = states_fixture_full
 
     with patch('manager_core.CurbTheScreen.psutil.process_iter') as mocked_process_iter:
-
         with patch('manager_core.CurbTheScreen.psutil.Process') as mocked_process:
             temp_program = TrackedProgram.min_init("test1", 100)
 
@@ -184,3 +137,4 @@ def test_add_to_running(states_fixture_full):
     ps.add_to_running()
 
     assert ps.currently_running == [test1, test2]
+

@@ -206,3 +206,14 @@ class TestTrackProgramSubclass:
 
         pg.PIDS = [1, 2]
         assert pg.is_running() is True
+
+    def test_get_program(self):
+        # Tests that a program object with the same name is retrieved from the program_objs
+        t1_empty = TrackedProgram.min_init("test1", 1)
+        t2_empty = TrackedProgram.min_init("test2", 2)
+        t3_empty = TrackedProgram.min_init("test3", 3)
+        programs = [t1_empty, t2_empty, t3_empty]
+
+        assert Program.get_program(t1_empty, programs) == t1_empty
+        assert Program.get_program(t2_empty, programs) == t2_empty
+        assert Program.get_program(t3_empty, programs) == t3_empty

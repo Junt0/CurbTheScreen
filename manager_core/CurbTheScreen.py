@@ -225,6 +225,13 @@ class Program(TrackedProgram):
     def is_running(self):
         return len(self.PIDS) > 0
 
+    @classmethod
+    def get_program(cls, program, array):
+        for item in array:
+            if program.name == item.name:
+                return item
+        return None
+
 
 # Stores any changes made into the database
 class DataManager:
@@ -464,22 +471,16 @@ class StateChangeDetector:
         self.prev_state = self.curr_state
         self.curr_state = pruned_pgs
 
-    def get_program(self, program, array):
-        for item in array:
-            if program.name == item.name:
-                return item
-        return None
-
     def is_stopped(self, new_pg_state):
-        old_pg_state = self.get_program(new_pg_state, self.prev_state)
-        new_pg_state = self.get_program(new_pg_state, self.curr_state)
+        old_pg_state = Program.get_program(new_pg_state, self.prev_state)
+        new_pg_state = Program.get_program(new_pg_state, self.curr_state)
 
         # If old state is found, means it was running, if new state is not found that means its not running anymore
         return old_pg_state is not None and new_pg_state is None
 
     def is_started(self, new_state):
-        old_state = self.get_program(new_state, self.prev_state)
-        new_state = self.get_program(new_state, self.curr_state)
+        old_state = Program.get_program(new_state, self.prev_state)
+        new_state = Program.get_program(new_state, self.curr_state)
         return old_state is None and new_state is not None
 
     def get_started(self):
@@ -501,7 +502,6 @@ class StateChangeDetector:
 
 
 class StateLogger:
-    program_states = None
 
     def __init__(self, program_states):
         self.program_states = program_state
@@ -537,38 +537,39 @@ class ProgramManager:
                 pass
         program.reset_pids()
 
-    def get_program(self, program, array):
-        for item in array:
-            if program.name == item.name:
-                return item
-        return None
-
     def update_blocked(self):
-        self.blocked_programs = self.PS.update_blocked()
+        for program in self.PS.program_objs:
+            if self.is_blocked(program):
+                self.add_to_blocked(program)
 
     def add_to_blocked(self, pg):
-        blocked = self.get_program(pg, self.blocked_programs)
-        if blocked is None:
-            blocked.blocked = True
-            self.blocked_programs.append(blocked)
+        in_blocked_arr = Program.get_program(pg, self.blocked_programs) is not None
+        if self.is_blocked(pg) and in_blocked_arr is False:
+            # Values are updated to ensure they are consistent with each other
+            pg.blocked = True
+            pg.time_left = 0
+            self.blocked_programs.append(pg)
 
     def is_blocked(self, program):
-        return program in self.blocked_programs or program.blocked
+        in_blocked_arr = Program.get_program(program, self.blocked_programs) is not None
 
-    def prune_programs(self, unclean_running):
-        cleaned_running = []
-        for program in unclean_running:
-            pg = self.get_program(program, self.blocked_programs)
-            if pg is None:
-                cleaned_running.append(program)
-                continue
+        return in_blocked_arr or program.blocked or program.time_left == 0
 
-            if self.is_blocked(pg):
+    def prune_programs(self, not_checked_programs):
+        """
+        Is passed in a list of program objects and iterates through to check for any blocked. If a blocked object is
+        found, it is stopped and added to the blocked array if not already in it. It then returns all the programs that
+        were not blocked
+        """
+        checked_pgs = []
+        for program in not_checked_programs:
+            if self.is_blocked(program):
+                self.add_to_blocked(program)
                 self.kill(program)
             else:
-                cleaned_running.append(program)
+                checked_pgs.append(program)
 
-        return cleaned_running
+        return checked_pgs
 
 
 class ProgramStates:
@@ -589,18 +590,6 @@ class ProgramStates:
 
     def get_loop_time(self):
         return Settings.LOOP_TIME
-
-    def update_blocked(self):
-        blocked = []
-
-        for program in self.program_objs:
-            time_left = program.time_left
-            if time_left == 0 or program.blocked:
-                program.blocked = True
-                program.time_remaining = time_left
-                blocked.append(program)
-
-        return blocked
 
     def reset(self):
         # Resets the PIDS of the program objects and removes all from currently running
@@ -690,7 +679,7 @@ if __name__ == '__main__':
     program_state = ProgramStates()
 
     # Init state detector which keeps track of what programs have just been started or stopped (no saves needed)
-    state_detector = StateChangeDetector(program_state)
+    state_detector = StateChangeDetector()
 
     # Deals with the ending of programs, filtering and blocking (needs access to pg objs from currently running)
     program_manager = ProgramManager(program_state)

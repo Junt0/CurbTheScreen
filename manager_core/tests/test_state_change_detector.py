@@ -52,7 +52,7 @@ def test_get_program_from_arr(state_change_blank_fixture, default_init):
     state_detector.curr_state = all_programs
 
     # Retrieves the same program, but may not be the same instance. Is based off of name
-    retrieved_pg = state_detector.get_program(TrackedProgram.min_init("test2", 500), state_detector.curr_state)
+    retrieved_pg = Program.get_program(TrackedProgram.min_init("test2", 500), state_detector.curr_state)
     assert retrieved_pg == program2
 
 
