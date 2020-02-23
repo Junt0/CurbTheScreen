@@ -24,9 +24,9 @@ TESTING_DB_LOC = os.path.join(ROOT_LOC, "database/test_db.sqlite")
 SCHEMA_LOC = os.path.join(ROOT_LOC, 'database/schema.sql')
 DB_LOC = os.path.join(ROOT_LOC, "database/db.sqlite")
 
-LOOP_TIME = 5
+LOOP_TIME = 1
 TRACKED_PROGRAMS = [
     # Format ([program name], [max time seconds])
     ("Calculator", 10),
-    ("Chrome", 5),
+    ("Discord", 10),
 ]

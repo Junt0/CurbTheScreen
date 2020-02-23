@@ -5,6 +5,9 @@ import pytest
 from manager_core.CurbTheScreen import DataManager, TrackedProgram
 
 
+# Tests to be added
+# TODO test to_objs many
+
 @pytest.fixture(scope="function")
 def store_example(create_db):
     with DataManager.StoreData(DataManager) as db:
@@ -117,7 +120,7 @@ def test_store_many_none(reset_db, default_init):
     assert result == []
 
 
-@pytest.mark.parametrize("params, expected", [
+@pytest.mark.parametrize("query_params, expected", [
     ({"p1": 10}, "p1=10"),
     ({"p1": "test"}, "p1='test'"),
     ({"p1": 10, "p2": 20}, "p1=10 AND p2=20"),
@@ -125,13 +128,23 @@ def test_store_many_none(reset_db, default_init):
     ({"p1": "test1", "p2": 20}, "p1='test1' AND p2=20"),
 
 ])
-def test_chain_filter_helper(params, expected):
+def test_chain_filter_helper(query_params, expected):
     # 1. Single int param
     # 2. Single str param
     # 3. Multiple param, 2 int
     # 4. Multiple param, 2 str
     # 4. Multiple param, 1 str 1 int
-    assert DataManager._chain_filter_helper(params, " AND ") == expected
+    assert DataManager._chain_filter_helper(query_params, " AND ") == expected
+
+
+def test_chain_filter_helper_nested_query():
+    separator = " AND "
+    params = {
+        "p1": 10,
+        "p2": 10,
+        "p3": "Q| (SELECT MAX(some_value) FROM some_table)"
+    }
+    expected = "p1=10 AND p2=10 AND p3=(SELECT MAX(some_value) FROM some_table)"
 
 
 def test_get(reset_db, default_init):
@@ -214,3 +227,21 @@ def test_get_day(reset_db, date_fixture):
 
     day_results = DataManager.get_day(base)
     assert [test1, test5] == day_results
+
+
+def test_get_latest_save(reset_db):
+    program1_a = TrackedProgram("test1", 100, 200, 225, 25)
+    program2_a = TrackedProgram("test2", 100, 300, 350, 50)
+    program1_b = TrackedProgram("test1", 100, 400, 425, 0)
+    program2_b = TrackedProgram("test2", 100, 500, 550, 0)
+    programs = [program1_a, program2_a, program1_b, program2_b]
+    DataManager.store_many(*programs)
+
+    program1_blank = TrackedProgram.min_init("test1", 100)
+    program2_blank = TrackedProgram.min_init("test2", 100)
+
+    latest_1 = DataManager.get_latest_save(program1_blank)
+    latest_2 = DataManager.get_latest_save(program2_blank)
+
+    assert latest_1 == program1_b
+    assert latest_2 == program2_b

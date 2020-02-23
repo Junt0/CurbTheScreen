@@ -1,13 +1,14 @@
+import time
 from unittest.mock import patch
 
 import pytest
-import time
+
 from manager_core.CurbTheScreen import TrackedProgram, Program
+
 
 # Tests to be added:
 # TODO Check is_valid() is called on object initialization, raised exception if invalid
 # TODO Add is_valid() start_none_no_end, start_none_no_elapsed tests
-
 
 @pytest.fixture
 def blank():

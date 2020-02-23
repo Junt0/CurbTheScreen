@@ -170,28 +170,14 @@ class TrackedProgram:
     def _is_none(self, value):
         return value is None
 
-    def has_save(self):
-        game_inst = DataManager.get_day(datetime.today(), limit=None, name=self.name)
-        if len(game_inst) is 0 or game_inst is None:
+    def has_save_today(self):
+        game_inst = DataManager.get_latest_save(self)
+        if game_inst is None:
             return False
         return True
 
     def get_latest_save(self):
-        # TODO make custom database query instead of querying multiple and finding lowest value
-        if self.has_save() is True:
-            program_saves = DataManager.get_day(datetime.today(), limit=None, name=self.name)
-
-            time_min = (0, None)
-            for pg in program_saves:
-                if pg.end_time == 0:
-                    return pg
-
-                if pg.start_time > time_min[0]:
-                    time_min = (pg.start_time, pg)
-
-            return time_min[1]
-        else:
-            return None
+        return DataManager.get_latest_save(self)
 
     def __str__(self):
         return f"{self.name} S:{self.start_time}  E:{self.end_time}  R:{self.time_left()}"
@@ -303,18 +289,33 @@ class DataManager:
                 print(f"An error occurred with the database: {e.args[0]}")
 
     @classmethod
-    def _chain_filter_helper(cls, params, separator):
-        # Goes through filtering AND params and returns a string of filtering AND statements to be used in a command
+    def _chain_filter_helper(cls, query_params, separator):
+        """
+        :param query_params: are the keys/values that are passed in as arguments from the function that's calling it. If
+        a key has a value that starts off with the text "Q| " (not including the quotes but including the space) this
+        is treated as a nested query and will not include quotes. Make sure to write the nested query with
+        opening/closing parenthesis
+        :param separator: characters to separate each each
+        key value pair in the query
+        :return: For example if separator is " AND " and params are {"key1":1, "key2":2, "key3":3}, this would result in
+        "key1=1 AND key2=2 AND key3=3"
+        """
         filter_count = 0
         chain_where = ""
 
-        for key, value in params.items():
+        for key, value in query_params.items():
             if type(value) is str:
-                chain_where += f"{key}='{value}'"
+                # If it is a nested query
+                if value[0:3] == "Q| ":
+                    chain_where += f"{key}={value[3:]}"
+                else:
+                    chain_where += f"{key}='{value}'"
             else:
+                # If it is a different type like an int
                 chain_where += f"{key}={value}"
 
-            if filter_count != len(params.keys()) - 1:
+            # Makes sure it does not put an additional separator at the very end
+            if filter_count != len(query_params.keys()) - 1:
                 chain_where += separator
 
             filter_count += 1
@@ -330,6 +331,17 @@ class DataManager:
             return program_obj
         else:
             raise AttributeError("The program object from db was invalid")
+
+    @classmethod
+    def to_obj_many(cls, db_result):
+        objs = []
+        program_objs = []
+        for row in db_result:
+            obj = cls.to_obj(row)
+            assert obj is not None, "Object retrieved from the database was none, data storage error likely"
+            program_objs.append(obj)
+
+        return program_objs
 
     @classmethod
     def store_new(cls, program: Union[Program, TrackedProgram]):
@@ -393,6 +405,13 @@ class DataManager:
             program_objs.append(cls.to_obj(row))
 
         return program_objs
+
+    @classmethod
+    def get_latest_save(cls, program_obj):
+        # If you need to understand why "Q| " is in the query, see the docstring in _chain_filter_helper()
+        query = f"Q| (SELECT MAX(start_time) FROM program_log WHERE name='{program_obj.name}')"
+        program_saves = DataManager.get(start_time=query)
+        return program_saves
 
     @classmethod
     def update_pg(cls, pk, **values):
@@ -633,9 +652,9 @@ class LoadData:
     def saves_program_init(cls, programs):
         saves = []
         for pg in programs:
-            loaded = pg.get_latest_save()
-            # If there is no save return the original object
+            loaded = DataManager.get_latest_save(pg)
 
+            # If there is no save return the original object
             if loaded is None:
                 saves.append(pg)
             else:

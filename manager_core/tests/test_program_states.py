@@ -1,8 +1,8 @@
 from unittest.mock import patch
 
 import pytest
-import time
-from manager_core.CurbTheScreen import TrackedProgram, Program, ProgramStates, DataManager
+
+from manager_core.CurbTheScreen import TrackedProgram, Program, ProgramStates
 
 
 @pytest.fixture
@@ -21,13 +21,15 @@ def states_fixture_full(states_fixture_empty, program_class_fixture):
 
 def test_init_program_objs_no_save(program_class_fixture):
     # Tests that the program objs are loaded in from the settings file directly if there is no save
-    with patch('manager_core.CurbTheScreen.ProgramStates.tracked_from_settings') as patched:
-        patched.return_value = program_class_fixture
-        ps = ProgramStates()
+    with patch('manager_core.CurbTheScreen.ProgramStates.tracked_from_settings') as patched_settings:
+        patched_settings.return_value = program_class_fixture
+        with patch('manager_core.CurbTheScreen.DataManager.get_latest_save') as patched_save:
+            patched_save.return_value = None
+            ps = ProgramStates()
 
-        assert ps.program_objs[0] == program_class_fixture[0]
-        assert ps.program_objs[1] == program_class_fixture[1]
-        assert ps.program_objs[2] == program_class_fixture[2]
+            assert ps.program_objs[0] == program_class_fixture[0]
+            assert ps.program_objs[1] == program_class_fixture[1]
+            assert ps.program_objs[2] == program_class_fixture[2]
 
 
 @pytest.mark.parametrize("time_left, expected_left, expected_block", [
@@ -41,9 +43,9 @@ def test_init_program_objs_with_save_no_db(time_left, expected_left, expected_bl
 
     with patch('manager_core.CurbTheScreen.ProgramStates.tracked_from_settings') as tracked:
         tracked.return_value = [test1]
-        with patch('manager_core.CurbTheScreen.TrackedProgram.has_save') as has_save:
+        with patch('manager_core.CurbTheScreen.TrackedProgram.has_save_today') as has_save:
             has_save.return_value = True
-            with patch('manager_core.CurbTheScreen.TrackedProgram.get_latest_save') as latest_save:
+            with patch('manager_core.CurbTheScreen.DataManager.get_latest_save') as latest_save:
                 latest_save.return_value = test1_saved
                 ps = ProgramStates()
 
@@ -73,7 +75,7 @@ def test_reset(program_class_fixture):
     with patch('manager_core.CurbTheScreen.ProgramStates.tracked_from_settings') as patched:
         patched.return_value = program_class_fixture
 
-        with patch('manager_core.CurbTheScreen.TrackedProgram.has_save') as has_save:
+        with patch('manager_core.CurbTheScreen.TrackedProgram.has_save_today') as has_save:
             has_save.return_value = False
             ps = ProgramStates()
 
