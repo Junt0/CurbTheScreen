@@ -1,7 +1,11 @@
 from unittest.mock import patch
 
 import pytest
+
+from manager_core import Settings
 from manager_core.CurbTheScreen import DataManager, TrackedProgram, ProgramStates
+
+Settings.TESTING = True
 
 
 @pytest.fixture(scope="session")

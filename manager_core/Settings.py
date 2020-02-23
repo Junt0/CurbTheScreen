@@ -1,16 +1,20 @@
 import os
 
+from pathlib2 import Path
 
 ROOT_DIR_NAME = "CurbTheScreen"
 def get_base_loc(dir_name):
-    cur_dir = os.getcwd().split("/")
-
+    cur_dir_path = Path(os.getcwd())
     try:
-        index = cur_dir.index(dir_name)
+        index = cur_dir_path.parts.index(dir_name)
     except ValueError:
         return None
 
-    return "/".join(cur_dir[0:index + 1])
+    p = ""
+    for part in range(0, index + 1):
+        p += f'{cur_dir_path.parts[part]}/'
+
+    return Path(p)
 
 
 ROOT_LOC = get_base_loc(ROOT_DIR_NAME)
@@ -20,8 +24,9 @@ TESTING_DB_LOC = os.path.join(ROOT_LOC, "database/test_db.sqlite")
 SCHEMA_LOC = os.path.join(ROOT_LOC, 'database/schema.sql')
 DB_LOC = os.path.join(ROOT_LOC, "database/db.sqlite")
 
-LOOP_TIME = 1
+LOOP_TIME = 5
 TRACKED_PROGRAMS = [
-    # Format ([program name], [max time])
+    # Format ([program name], [max time seconds])
     ("Calculator", 10),
+    ("Chrome", 5),
 ]

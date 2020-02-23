@@ -1,8 +1,8 @@
-import sqlite3
 from datetime import datetime, timedelta
-from manager_core.CurbTheScreen import DataManager, TrackedProgram
 
 import pytest
+
+from manager_core.CurbTheScreen import DataManager, TrackedProgram
 
 
 @pytest.fixture(scope="function")
@@ -107,6 +107,14 @@ def test_store_many(reset_db, default_init, row_num):
     assert result['max_time'] == default_init.max_time
     assert result['name'] == default_init.name
     assert result['id'] is row_num + 1
+
+
+def test_store_many_none(reset_db, default_init):
+    # Testing for bug where if no object is given to store_many it shows that an error occured with the db
+    DataManager.store_many()
+
+    result = DataManager.query("SELECT * FROM program_log")
+    assert result == []
 
 
 @pytest.mark.parametrize("params, expected", [

@@ -1,14 +1,13 @@
-import os
 import sqlite3
 import time
 from datetime import datetime, timedelta
-from pathlib2 import Path
-from typing import Union, List
+from typing import Union
 
 import psutil
+from pathlib2 import Path
 
 # Is a stripped down program object to differentiate between running programs and given programs to track
-from . import Settings
+from manager_core import Settings
 
 
 # TODO add type hints for all classes
@@ -239,17 +238,14 @@ class DataManager:
 
     @classmethod
     def init_db(cls, path: Path):
-        DataManager.path = path / "test_db.sqlite"
-        """if Settings.TESTING:
-            db_path = Settings.TESTING_DB_LOC
+        if Settings.TESTING:
+            DataManager.path = path / "test_db.sqlite"
         else:
-            db_path = Settings.DB_LOC"""
+            DataManager.path = path / "database" / "db.sqlite"
 
         if cls.path.is_file() is False:
             db_file = cls.path.open(mode="w+")
             db_file.close()
-
-        cls.reset_db()
 
     @classmethod
     def reset_db(cls):
@@ -261,11 +257,6 @@ class DataManager:
     def get_db(cls):
         db = sqlite3.connect(DataManager.path, detect_types=sqlite3.PARSE_DECLTYPES)
 
-        """if Settings.TESTING:
-            db = sqlite3.connect(Settings.TESTING_DB_LOC, detect_types=sqlite3.PARSE_DECLTYPES)
-        else:
-            db = sqlite3.connect(Settings.DB_LOC, detect_types=sqlite3.PARSE_DECLTYPES)
-"""
         db.row_factory = sqlite3.Row
         return db
 
@@ -353,6 +344,9 @@ class DataManager:
 
     @classmethod
     def store_many(cls, *program_objs: TrackedProgram):
+        if len(program_objs) == 0:
+            return
+
         query = f"INSERT INTO program_log (name, start_time, end_time, time_left, max_time) VALUES "
         rows = ""
         for program in program_objs:
@@ -459,7 +453,7 @@ class DataManager:
             last_save = item.get_latest_save()
             assert last_save is not None, "Tried to end a running game with no save"
 
-            cls.update_pg(cls.id_of_obj(last_save), end_time=item.end_time, time_remaining=item.time_left())
+            cls.update_pg(cls.id_of_obj(last_save), end_time=item.end_time, time_left=item.time_left)
 
 
 class StateChangeDetector:
@@ -671,10 +665,8 @@ class LoadData:
 if __name__ == '__main__':
     # Start the db with the right schema
     # Reset any data that is in the db
-    DataManager.init_db()
+    DataManager.init_db(Settings.get_base_loc(Settings.ROOT_DIR_NAME))
     # DataManager.reset_db()
-    # DataManager.store_new(TrackedProgram("Chrome", 10, time.time()-5, time.time(), 5))
-    # DataManager.store_new(TrackedProgram("Chrome", 10, time.time(), time.time()+4, 1))
 
     program_state = ProgramStates()
 
