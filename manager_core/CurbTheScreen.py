@@ -456,8 +456,7 @@ class DataManager:
 
 
 class StateChangeDetector:
-    def __init__(self, ps):
-        self.PS: ProgramStates = ps
+    def __init__(self):
         self.prev_state = []
         self.curr_state = []
 
@@ -471,12 +470,12 @@ class StateChangeDetector:
                 return item
         return None
 
-    def is_stopped(self, new_state):
-        old_state = self.get_program(new_state, self.prev_state)
-        new_state = self.get_program(new_state, self.curr_state)
+    def is_stopped(self, new_pg_state):
+        old_pg_state = self.get_program(new_pg_state, self.prev_state)
+        new_pg_state = self.get_program(new_pg_state, self.curr_state)
 
         # If old state is found, means it was running, if new state is not found that means its not running anymore
-        return old_state is not None and new_state is None
+        return old_pg_state is not None and new_pg_state is None
 
     def is_started(self, new_state):
         old_state = self.get_program(new_state, self.prev_state)
@@ -487,13 +486,10 @@ class StateChangeDetector:
         started_pgs = []
         for item in self.curr_state:
             if self.is_started(item):
-                if item.has_save():
-                    save = item.get_latest_save()
-                    if save is not None:
-                        if save.time_remaining < item.time_remaining:
-                            item.time_remaining = save.time_remaining
-                item.elapsed_time = 0
                 started_pgs.append(item)
+
+        # Expects prev_logged_save to take care of logic to load previously saved programs
+        started_pgs = LoadData.prev_logged_save(started_pgs)
         return started_pgs
 
     def get_stopped(self):
@@ -619,7 +615,7 @@ class ProgramStates:
         return programs
 
     def init_program_objs(self):
-        for program in LoadData.load_saves(self.tracked_from_settings()):
+        for program in LoadData.saves_program_init(self.tracked_from_settings()):
             pg_obj = Program(program)
             if pg_obj.time_left == 0:
                 pg_obj.blocked = True
@@ -651,7 +647,7 @@ class ProgramStates:
 class LoadData:
     # Gets initial states for program
     @classmethod
-    def load_saves(cls, programs):
+    def saves_program_init(cls, programs):
         saves = []
         for pg in programs:
             loaded = pg.get_latest_save()
@@ -666,6 +662,21 @@ class LoadData:
 
         return saves
 
+    @classmethod
+    def prev_logged_save(cls, programs):
+        saves = []
+        for pg in programs:
+            loaded = pg.get_latest_save()
+
+            # If there is no save return the original object
+            if loaded is None:
+                saves.append(pg)
+            else:
+                if loaded.time_left < pg.time_left:
+                    pg.time_left = loaded.time_left
+                saves.append(pg)
+
+        return saves
 
 
 if __name__ == '__main__':

@@ -136,14 +136,15 @@ def test_populate_program_pids(states_fixture_full):
     ps = states_fixture_full
 
     with patch('manager_core.CurbTheScreen.psutil.process_iter') as mocked_process_iter:
+
         with patch('manager_core.CurbTheScreen.psutil.Process') as mocked_process:
             temp_program = TrackedProgram.min_init("test1", 100)
 
             # Tests when pids are added that match the name of the program
             mocked_process.info = {"name": 'test1', "pid": 1}
-            mocked_process_iter.asser_called_with(attrs=['name', 'pid'])
             mocked_process_iter.return_value = iter([mocked_process])
             ps.populate_program_pids()
+            mocked_process_iter.assert_called_with(attrs=["name", "pid"])
 
             assert [1] == ps.get_program(temp_program).PIDS
 
