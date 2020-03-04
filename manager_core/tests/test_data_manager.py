@@ -230,11 +230,18 @@ def test_get_day(reset_db, date_fixture):
 
 
 def test_get_latest_save(reset_db):
-    program1_a = TrackedProgram("test1", 100, 200, 225, 25)
-    program2_a = TrackedProgram("test2", 100, 300, 350, 50)
-    program1_b = TrackedProgram("test1", 100, 400, 425, 0)
-    program2_b = TrackedProgram("test2", 100, 500, 550, 0)
-    programs = [program1_a, program2_a, program1_b, program2_b]
+    base_date = datetime.today().timestamp()
+    # Programs that ran on a past date
+    program1_a = TrackedProgram("test1", 100, 200, 300, 0)
+    program2_a = TrackedProgram("test2", 100, 300, 375, 25)
+
+    # Tests that the most current program from the current day is retrieved
+    time_offset = 100
+    program1_b = TrackedProgram("test1", 100, base_date, base_date + 50, 50)
+    program1_c = TrackedProgram("test1", 100, base_date + time_offset, base_date + time_offset + 75, 25)
+    program2_b = TrackedProgram("test2", 100, base_date + 2 * time_offset, base_date + 2 * time_offset + 100, 0)
+
+    programs = [program1_a, program2_a, program1_b, program2_b, program1_c]
     DataManager.store_many(*programs)
 
     program1_blank = TrackedProgram.min_init("test1", 100)
@@ -243,5 +250,24 @@ def test_get_latest_save(reset_db):
     latest_1 = DataManager.get_latest_save(program1_blank)
     latest_2 = DataManager.get_latest_save(program2_blank)
 
-    assert latest_1 == program1_b
+    assert latest_1 == program1_c
     assert latest_2 == program2_b
+
+
+def test_get_latest_save_empty(reset_db):
+    base_date = datetime.today().timestamp()
+    # Programs that ran on a past date
+    program1_a = TrackedProgram("test1", 100, 200, 300, 0)
+    program2_a = TrackedProgram("test2", 100, 300, 375, 25)
+
+    programs = [program1_a, program2_a]
+    DataManager.store_many(*programs)
+
+    program1_blank = TrackedProgram.min_init("test1", 100)
+    program2_blank = TrackedProgram.min_init("test2", 100)
+
+    latest_1 = DataManager.get_latest_save(program1_blank)
+    latest_2 = DataManager.get_latest_save(program2_blank)
+
+    assert latest_1 == None
+    assert latest_2 == None

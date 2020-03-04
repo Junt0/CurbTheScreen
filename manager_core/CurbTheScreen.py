@@ -184,11 +184,11 @@ class TrackedProgram:
 
     def __eq__(self, other):
         name_equal = other.name == self.name
-        start_time_equal = other.start_time == self.start_time
-        end_time_equal = other.end_time == self.end_time
-        max_time_equal = other.max_time == self.max_time
+        start_time_equal = int(other.start_time) == int(self.start_time)
+        end_time_equal = int(other.end_time) == int(self.end_time)
+        max_time_equal = int(other.max_time) == int(self.max_time)
         blocked_equal = other.blocked == self.blocked
-        time_left_equal = other.time_left == self.time_left
+        time_left_equal = int(other.time_left) == int(self.time_left)
 
         return blocked_equal and name_equal and start_time_equal and end_time_equal and max_time_equal and time_left_equal
 
@@ -295,8 +295,7 @@ class DataManager:
         a key has a value that starts off with the text "Q| " (not including the quotes but including the space) this
         is treated as a nested query and will not include quotes. Make sure to write the nested query with
         opening/closing parenthesis
-        :param separator: characters to separate each each
-        key value pair in the query
+        :param separator: characters to separate each each key value pair in the query
         :return: For example if separator is " AND " and params are {"key1":1, "key2":2, "key3":3}, this would result in
         "key1=1 AND key2=2 AND key3=3"
         """
@@ -408,10 +407,17 @@ class DataManager:
 
     @classmethod
     def get_latest_save(cls, program_obj):
-        # If you need to understand why "Q| " is in the query, see the docstring in _chain_filter_helper()
-        query = f"Q| (SELECT MAX(start_time) FROM program_log WHERE name='{program_obj.name}')"
-        program_saves = DataManager.get(start_time=query)
-        return program_saves
+        program_saves = DataManager.get_day(datetime.today(), limit=None, name=program_obj.name)
+        if not program_saves:
+            return None
+
+        # Gets lowest time left for programs in the day
+        min_index = 0
+        for pg_index in range(len(program_saves)):
+            if program_saves[pg_index].time_left < program_saves[min_index].time_left:
+                min_index = pg_index
+
+        return program_saves[min_index]
 
     @classmethod
     def update_pg(cls, pk, **values):
@@ -450,7 +456,12 @@ class DataManager:
             query += ";"
 
         programs = []
-        results = cls.query(query, single=False)
+        results = None
+        if limit == 1:
+            results = cls.query(query, single=True)
+        else:
+            results = cls.query(query, single=False)
+
         if results is not None:
             for row in results:
                 programs.append(cls.to_obj(row))
@@ -517,7 +528,7 @@ class StateChangeDetector:
 class StateLogger:
 
     def __init__(self, program_states):
-        self.program_states = program_state
+        self.program_states = program_states
 
     def log_started(self, to_log):
         self.set_starts(to_log)
@@ -681,7 +692,7 @@ class LoadData:
         return saves
 
 
-if __name__ == '__main__':
+def run():
     # Start the db with the right schema
     # Reset any data that is in the db
     DataManager.init_db(Settings.get_base_loc(Settings.ROOT_DIR_NAME))
@@ -718,3 +729,7 @@ if __name__ == '__main__':
         program_state.update_elapsed()
         program_manager.update_blocked()
         time.sleep(Settings.LOOP_TIME)
+
+
+if __name__ == '__main__':
+    run()
