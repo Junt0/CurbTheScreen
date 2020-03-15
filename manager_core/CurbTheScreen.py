@@ -232,6 +232,7 @@ class DataManager:
         if cls.path.is_file() is False:
             db_file = cls.path.open(mode="w+")
             db_file.close()
+            cls.reset_db()
 
     @classmethod
     def reset_db(cls):
