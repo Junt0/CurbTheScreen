@@ -16,4 +16,14 @@ setup(
         'pathlib2==2.3.5'
     ],
 
+    data_files=[
+        ('database', [
+            'database/schema.sql',
+        ]),
+    ],
+
+    console=[
+        'CurbTheScreen.py',
+    ],
+
 )
