@@ -412,13 +412,13 @@ class DataManager:
         if not program_saves:
             return None
 
-        # Gets lowest time left for programs in the day
-        min_index = 0
+        # Gets largest start time for programs in the day
+        max_index = 0
         for pg_index in range(len(program_saves)):
-            if program_saves[pg_index].time_left < program_saves[min_index].time_left:
-                min_index = pg_index
+            if program_saves[pg_index].start_time > program_saves[max_index].start_time:
+                max_index = pg_index
 
-        return program_saves[min_index]
+        return program_saves[max_index]
 
     @classmethod
     def update_pg(cls, pk, **values):
@@ -479,12 +479,25 @@ class DataManager:
         return cls.get_date_range(start, end, limit, **query_params)
 
     @classmethod
-    def log_ended(cls, log_end):
+    def update_pg_times(cls, log_end):
         for item in log_end:
             last_save = item.get_latest_save()
             assert last_save is not None, "Tried to end a running game with no save"
-
             cls.update_pg(cls.id_of_obj(last_save), end_time=item.end_time, time_left=item.time_left)
+
+    @classmethod
+    def save_state(cls, program_state, program_manager, state_detector):
+        print("Saving the current state upon exit...")
+        running = program_state.get_curr_running()
+        pruned = program_manager.prune_programs(running)
+
+        # State detector gets which programs should be updated
+        state_detector.update_states(pruned)
+        started = state_detector.get_started()
+
+        # Logger keeps ProgramStates and DB with most current info
+        StateLogger.log_started(started)
+        StateLogger.log_end(pruned)
 
 
 class StateChangeDetector:
@@ -524,28 +537,6 @@ class StateChangeDetector:
             if self.is_stopped(item):
                 ended_pgs.append(item)
         return ended_pgs
-
-
-class StateLogger:
-
-    def __init__(self, program_states):
-        self.program_states = program_states
-
-    def log_started(self, to_log):
-        self.set_starts(to_log)
-        DataManager.store_many(*to_log)
-
-    def log_end(self, to_log):
-        self.set_ends(to_log)
-        DataManager.log_ended(to_log)
-
-    def set_starts(self, items):
-        for item in items:
-            item.start_now()
-
-    def set_ends(self, items):
-        for item in items:
-            item.end_now()
 
 
 class ProgramManager:
@@ -658,6 +649,32 @@ class ProgramStates:
         return self.currently_running
 
 
+class StateLogger:
+
+    def __init__(self, program_states):
+        self.program_states = program_states
+
+    @classmethod
+    def log_started(cls, to_log):
+        cls.set_starts(to_log)
+        DataManager.store_many(*to_log)
+
+    @classmethod
+    def log_end(cls, to_log):
+        cls.set_ends(to_log)
+        DataManager.update_pg_times(to_log)
+
+    @classmethod
+    def set_starts(cls, items):
+        for item in items:
+            item.start_now()
+
+    @classmethod
+    def set_ends(cls, items):
+        for item in items:
+            item.end_now()
+
+
 class LoadData:
     # Gets initial states for program
     @classmethod
@@ -710,6 +727,10 @@ def run():
     # Class for all others to access and get currently running/program objs (needs saves to be loaded)
     program_manager.update_blocked()
     logger = StateLogger(program_state)
+
+    # Before the program is shutdown, currently running programs are updated
+    import atexit
+    atexit.register(DataManager.save_state, program_state, program_manager, state_detector)
 
     while True:
         # Removes programs that shouldn't be running

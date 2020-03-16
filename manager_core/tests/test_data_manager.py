@@ -271,3 +271,20 @@ def test_get_latest_save_empty(reset_db):
 
     assert latest_1 == None
     assert latest_2 == None
+
+
+def test_update_pg_times_end_filled(reset_db):
+    base = datetime.today()
+    offset = 10
+
+    test2_a = TrackedProgram("test2", 100, base.timestamp(), base.timestamp() + offset, 90)
+
+    new_end = base.timestamp() + 2 * offset
+    test2_b = TrackedProgram("test2", 100, base.timestamp(), new_end, 80)
+
+    DataManager.store_many(test2_a)
+    DataManager.update_pg_times([test2_b])
+
+    db_result = DataManager.get_latest_save(test2_a)
+    assert db_result.time_left == 80
+    assert db_result.end_time == new_end
