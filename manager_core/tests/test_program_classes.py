@@ -14,6 +14,7 @@ from manager_core.CurbTheScreen import TrackedProgram, Program
 def blank():
     return TrackedProgram("test", 1, 0, 0, 0)
 
+
 @pytest.fixture
 def dict_params():
     attributes = {
@@ -78,8 +79,9 @@ class TestTrackedProgram:
         assert pg.max_time == 100
 
     # test full initialization of TrackedProgram
-    def test_init(self, ):
+    def test_init(self):
         pg = TrackedProgram("test", 2, 1, 2, 0)
+
         assert pg.name == "test"
         assert pg.max_time == 2
         assert pg.db_id is None

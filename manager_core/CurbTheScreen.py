@@ -1,10 +1,10 @@
 import sqlite3
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Union
 
 import psutil
-from pathlib2 import Path
 
 # Is a stripped down program object to differentiate between running programs and given programs to track
 from manager_core import Settings
@@ -12,7 +12,28 @@ from manager_core import Settings
 
 # TODO add type hints for all classes
 class TrackedProgram:
-    def __init__(self, name, max_time, start, end, remaining):
+    """A `TrackedProgram` object is essentially a way to represent any running process/computer program. However, this
+    does not store any information related to the actual process that is running, other than the name. This class does
+    not actually retrieve information about the program/processes of the system, it is used for other classes to
+    retrieve and store that information. `TrackedProgram` classes should only be used to keep track of long term program
+    state and be used to initialize `Program` objects.
+
+    Attributes:
+        elapsed_time: a float that keeps track of the number of seconds the program was running for. This
+            is updated by the main loop.
+        blocked: a boolean that indicates if the program should be prevented from being opened.
+        db_id: an integer that represents the database row that the object was retrieved from. Is None if it was not
+            retrieved from the database.
+        name: a string that matches a program/process name.
+        max_time: a float that represents the maximum number of seconds the program should be allowed to run for.
+        start_time: a float that represents the time the program/process was started using Unix time.
+        end_time: a float that represents the time the program/process was ended using Unix time. By default, a value of
+            0 implies that there is no end time.
+        time_left: a float that represents the amount of time the program/process has left which depends on the values of
+            `start_time`, `end_time` and `elapsed_time`.
+    """
+
+    def __init__(self, name: str, max_time: float, start: float, end: float, remaining: float):
         self.elapsed_time = 0
         self.blocked = False
         self.db_id = None
@@ -28,7 +49,33 @@ class TrackedProgram:
             raise AttributeError("Initialized with an invalid attribute")
 
     @classmethod
-    def dict_init(cls, attrs):
+    def min_init(cls, name: str, max_time: float):
+        """A bare bones alternate constructor for TrackedProgram.
+
+        Args:
+            name: a string that matches a program/process name.
+            max_time: a float that represents the maximum number of seconds the program should be allowed to run for.
+
+        Returns:
+            A new instance of TrackedProgram with `start_time`, `end_time` equal to 0 and `time_left`, `max_time` is set
+            equal to the `max_time` argument.
+        """
+
+        return TrackedProgram(name, max_time, 0, 0, max_time)
+
+    @classmethod
+    def dict_init(cls, attrs: dict):
+        """An alternate constructor for TrackedProgram that uses a dictionary. It modifies/adds instance attribute with each
+        key in the dictionary. Adding keys that do not have an attribute associated to the class is not recommended.
+
+        Args:
+            attrs: a dictionary of keys and values to set instance variables equal to.
+
+        Returns:
+            A new instance of TrackedProgram with corresponding keys assigning a variable with the same name the value
+            that was passed in.
+        """
+
         if attrs is None:
             return None
 
@@ -39,10 +86,6 @@ class TrackedProgram:
                 continue
             setattr(program, key, attrs[key])
         return program
-
-    @classmethod
-    def min_init(cls, name, max_time):
-        return TrackedProgram(name, max_time, 0, 0, max_time)
 
     @property
     def name(self):
@@ -195,24 +238,47 @@ class TrackedProgram:
 
 # How the programs that are tracked will be represented
 class Program(TrackedProgram):
+    """The Program class is a subclass of TrackedProgram. The main difference is that Program has additional attributes
+    for process data to be stored, like process ids (PIDS) and it should be created when you are representing an actual
+    running process.
+
+    Attributes:
+        PIDS: an array of integers that stores the program id's (PIDS) of a process that matches the `name` attribute of
+            the instance
+    """
 
     def __init__(self, tracked: TrackedProgram):
+        """Initializes a new `Program` object with a provided `TrackedProgram` instance
+
+        Args:
+            tracked: The `TrackedProgram` object used to initialize the parent class
+        """
         super().__init__(tracked.name, tracked.max_time, tracked.start_time, tracked.end_time, tracked.time_left)
         self.PIDS = []
 
-    def add_pid(self, pid):
+    def add_pid(self, pid: int):
         if pid not in self.PIDS:
             self.PIDS.append(pid)
 
     def reset_pids(self):
         self.PIDS = []
 
-    def is_running(self):
+    def is_running(self) -> bool:
         return len(self.PIDS) > 0
 
     @classmethod
-    def get_program(cls, program, array):
-        for item in array:
+    def get_program(cls, program: TrackedProgram, pg_arr: list) -> Union[None, TrackedProgram]:
+        """A static method to retrieve a `TrackedProgram` instance that has the same name as the provided instance from
+        a list
+
+        Args:
+            program: a `TrackedProgram` instance or a `Program` instance
+            pg_arr: a list of `TrackedProgram` or `Program` instances
+
+        Returns:
+            The first instance in the list that has the same name as the provided instance
+        """
+        for item in pg_arr:
             if program.name == item.name:
                 return item
         return None
@@ -224,11 +290,13 @@ class DataManager:
 
     @classmethod
     def init_db(cls, path: Path):
+        # Sets the static path for the database depending if its testing (constant found in Settings)
         if Settings.TESTING:
             DataManager.path = path / "test_db.sqlite"
         else:
             DataManager.path = path / "database" / "db.sqlite"
 
+        # This creates the sqlite file if it does not exist and initializes it with the proper sql command for use
         if cls.path.is_file() is False:
             db_file = cls.path.open(mode="w+")
             db_file.close()
@@ -236,24 +304,29 @@ class DataManager:
 
     @classmethod
     def reset_db(cls):
+        """Resets all rows of the database by calling the script that resets the schema. This is an irreversible
+        operation"""
+
         with open(Settings.SCHEMA_LOC, "r") as script:
-            db = DataManager.get_db()
+            db = DataManager._get_db()
             db.executescript(script.read().strip())
 
     @classmethod
-    def get_db(cls):
+    def _get_db(cls):
         db = sqlite3.connect(DataManager.path, detect_types=sqlite3.PARSE_DECLTYPES)
 
         db.row_factory = sqlite3.Row
         return db
 
     class GetData:
+
         def __init__(self, dm):
-            self.db = dm.get_db()
-            """if Settings.TESTING:
-                self.db = dm.get_test_db()
-            else:
-                self.db = dm.get_db()"""
+            """Initializes the context manager
+
+            Args:
+                dm: The DataManager class
+            """
+            self.db = dm._get_db()
 
         def __enter__(self):
             return self.db
@@ -262,12 +335,14 @@ class DataManager:
             self.db.close()
 
     class StoreData:
+
         def __init__(self, dm):
-            self.db = dm.get_db()
-            """if Settings.TESTING:
-                self.db = dm.get_test_db()
-            else:
-                self.db = dm.get_db()"""
+            """Initializes the context manager
+
+            Args:
+                dm: The DataManager class
+            """
+            self.db = dm._get_db()
 
         def __enter__(self):
             return self.db
@@ -277,7 +352,7 @@ class DataManager:
             self.db.close()
 
     @classmethod
-    def query(cls, query, single=False):
+    def query(cls, query: str, single=False):
         with DataManager.GetData(cls) as db:
             try:
                 conn = db.cursor()
@@ -589,6 +664,11 @@ class ProgramManager:
 
 
 class ProgramStates:
+    """
+    ProgramStates loads in the programs to track from the settings file that the user specifies. It converts the
+    specified program name into a TrackProgram object.
+    """
+
     def __init__(self):
         self.currently_running = []
         self.program_objs = []

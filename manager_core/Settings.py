@@ -1,6 +1,6 @@
 import os
 
-from pathlib2 import Path
+from pathlib import Path
 
 ROOT_DIR_NAME = "CurbTheScreen"
 def get_base_loc(dir_name):
