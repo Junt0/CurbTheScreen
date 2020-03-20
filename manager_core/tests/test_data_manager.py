@@ -283,7 +283,7 @@ def test_update_pg_times_end_filled(reset_db):
     test2_b = TrackedProgram("test2", 100, base.timestamp(), new_end, 80)
 
     DataManager.store_many(test2_a)
-    DataManager.update_pg_times([test2_b])
+    DataManager.update_latest_pg(test2_b)
 
     db_result = DataManager.get_latest_save(test2_a)
     assert db_result.time_left == 80

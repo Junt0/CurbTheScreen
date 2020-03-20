@@ -1,8 +1,8 @@
 from unittest.mock import patch
 
 import pytest
-import time
-from manager_core.CurbTheScreen import TrackedProgram, Program, ProgramStates, DataManager, StateChangeDetector
+
+from manager_core.CurbTheScreen import TrackedProgram, Program, StateChangeDetector
 
 
 @pytest.fixture(scope="function")
@@ -57,7 +57,7 @@ def test_get_program_from_arr(state_change_blank_fixture, default_init):
 
 
 @pytest.mark.parametrize("curr_state, prev_state, expected", [
-    ("pg", "pg", False), ("", "pg", True), ("pg", "", False), ("", "", False)
+    ("program", "program", False), ("", "program", True), ("program", "", False), ("", "", False)
 ])
 def test_is_stopped(state_change_blank_fixture, default_init, curr_state, prev_state, expected):
     # Returns whether or not the program is running based on the arrays its in
@@ -69,12 +69,12 @@ def test_is_stopped(state_change_blank_fixture, default_init, curr_state, prev_s
     state_detector = state_change_blank_fixture
     program1 = default_init
 
-    if curr_state == "pg":
+    if curr_state == "program":
         state_detector.curr_state = [program1]
     else:
         state_detector.curr_state = []
 
-    if prev_state == "pg":
+    if prev_state == "program":
         state_detector.prev_state = [program1]
     else:
         state_detector.prev_state = []
@@ -83,7 +83,7 @@ def test_is_stopped(state_change_blank_fixture, default_init, curr_state, prev_s
 
 
 @pytest.mark.parametrize("curr_state, prev_state, expected", [
-    ("pg", "pg", False), ("", "pg", False), ("pg", "", True), ("", "", False)
+    ("program", "program", False), ("", "program", False), ("program", "", True), ("", "", False)
 ])
 def test_is_started(state_change_blank_fixture, default_init, curr_state, prev_state, expected):
     # Returns whether or not the program is running based on the arrays its in
@@ -95,12 +95,12 @@ def test_is_started(state_change_blank_fixture, default_init, curr_state, prev_s
     state_detector = state_change_blank_fixture
     program1 = default_init
 
-    if curr_state == "pg":
+    if curr_state == "program":
         state_detector.curr_state = [program1]
     else:
         state_detector.curr_state = []
 
-    if prev_state == "pg":
+    if prev_state == "program":
         state_detector.prev_state = [program1]
     else:
         state_detector.prev_state = []

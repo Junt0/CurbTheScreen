@@ -2,7 +2,7 @@ import sqlite3
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Union
+from typing import Union, List
 
 import psutil
 
@@ -286,10 +286,19 @@ class Program(TrackedProgram):
 
 # Stores any changes made into the database
 class DataManager:
+    """A class that abstracts SQL queries to make dealing with the database easier. Probably not very secure."""
     path = None
 
     @classmethod
     def init_db(cls, path: Path):
+        """Should be called at least once and before any database operations are done to properly configure the
+        resources. If there is no database in the determined location, it creates the database and initializes it with
+        the proper schema.
+
+        Args:
+            path: The root directory `Path` object that will be used to initialize the database.
+        """
+
         # Sets the static path for the database depending if its testing (constant found in Settings)
         if Settings.TESTING:
             DataManager.path = path / "test_db.sqlite"
@@ -305,7 +314,7 @@ class DataManager:
     @classmethod
     def reset_db(cls):
         """Resets all rows of the database by calling the script that resets the schema. This is an irreversible
-        operation"""
+        operation."""
 
         with open(Settings.SCHEMA_LOC, "r") as script:
             db = DataManager._get_db()
@@ -313,12 +322,16 @@ class DataManager:
 
     @classmethod
     def _get_db(cls):
+        """Gets database connection. Highly recommended to use context managers instead."""
         db = sqlite3.connect(DataManager.path, detect_types=sqlite3.PARSE_DECLTYPES)
 
         db.row_factory = sqlite3.Row
         return db
 
     class GetData:
+        """A context manager class that properly enters and closes the database resources. This class should only be
+        used when directly retrieving data from the database.
+        """
 
         def __init__(self, dm):
             """Initializes the context manager
@@ -335,6 +348,9 @@ class DataManager:
             self.db.close()
 
     class StoreData:
+        """A context manager class that properly enters and closes the database resources. This class should only be
+        used when directly storing data into the database.
+        """
 
         def __init__(self, dm):
             """Initializes the context manager
@@ -353,6 +369,16 @@ class DataManager:
 
     @classmethod
     def query(cls, query: str, single=False):
+        """Execute raw SQL queries onto the database with proper closing of resources.
+
+        Args:
+            query: a string with valid SQL to be sent as a query to the database.
+            single: a boolean that represents if only one row will be returned from the query.
+
+        Returns:
+            If ``single=True`` then a single `sqlite3.Row` object is returned. Otherwise an array of row objects are
+            returned.
+        """
         with DataManager.GetData(cls) as db:
             try:
                 conn = db.cursor()
@@ -365,22 +391,27 @@ class DataManager:
                 print(f"An error occurred with the database: {e.args[0]}")
 
     @classmethod
-    def _chain_filter_helper(cls, query_params, separator):
-        """
-        :param query_params: are the keys/values that are passed in as arguments from the function that's calling it. If
-        a key has a value that starts off with the text "Q| " (not including the quotes but including the space) this
-        is treated as a nested query and will not include quotes. Make sure to write the nested query with
-        opening/closing parenthesis
-        :param separator: characters to separate each each key value pair in the query
-        :return: For example if separator is " AND " and params are {"key1":1, "key2":2, "key3":3}, this would result in
-        "key1=1 AND key2=2 AND key3=3"
+    def _chain_filter_helper(cls, query_params: dict, separator: str) -> str:
+        """Helps generate chained SQL statements with an SQL query. ``" AND "`` is the most common separator.
+        Args:
+            query_params: are the keys/values that are passed in as arguments from the function that's calling it. If
+                a key has a value that starts off with the text "Q| " (not including the quotes but including the space)
+                this is treated as a nested query and will not include quotes. Make sure to write the nested query with
+                opening/closing parenthesis ex: (SELECT * FROM ___)
+
+            separator: characters to separate each each key value pair in the query
+
+        Returns:
+            This returns a string to be inserted into an SQL query. For example if ``separator=" AND "`` and
+            ``params={"key1":1, "key2":2, "key3":3}``, this would return "key1=1 AND key2=2 AND key3=3".
         """
         filter_count = 0
         chain_where = ""
 
         for key, value in query_params.items():
+            # Depending on the type of the value of the key value pair it will put quotes around it
             if type(value) is str:
-                # If it is a nested query
+                # If it is a nested query, modifies string to be appropriate sql
                 if value[0:3] == "Q| ":
                     chain_where += f"{key}={value[3:]}"
                 else:
@@ -397,10 +428,23 @@ class DataManager:
         return chain_where
 
     @classmethod
-    def to_obj(cls, db_result):
-        program_obj = TrackedProgram.dict_init(db_result)
+    def to_obj(cls, db_result) -> Union[TrackedProgram, None]:
+        """Creates a new TrackedProgram object from a database row result.
+
+        Args:
+            db_result: a single `sqlite3.Row` object
+
+        Returns:
+            It will return none if `db_result` is none. Otherwise it will return a new TrackedProgram object.
+
+        Raises:
+            AttributeError: If the database creates an instance of TrackedProgram that is invalid
+        """
         if db_result is None:
             return None
+
+        # We are using dict_init since it behaves the same with row objects as it does with dictionary objects
+        program_obj = TrackedProgram.dict_init(db_result)
 
         if program_obj.is_valid():
             return program_obj
@@ -408,18 +452,37 @@ class DataManager:
             raise AttributeError("The program object from db was invalid")
 
     @classmethod
-    def to_obj_many(cls, db_result):
+    def to_obj_many(cls, db_result: list) -> List[TrackedProgram]:
+        """Converts multiple `sqlite3.Row` objects into a list of `TrackedProgram` objects.
+
+        Args:
+            db_result: a list of `sqlite3.Row` objects.
+
+        Returns:
+            A list of TrackedProgram objects from `db_result`.
+
+        Raises:
+            AssertionError: If the database row is None.
+            AttributeError: If the `to_obj()` method raises this error as a result of an invalid attribute.
+        """
+
         objs = []
         program_objs = []
         for row in db_result:
+            assert row is not None, "Object retrieved from the database was none, data storage error likely"
             obj = cls.to_obj(row)
-            assert obj is not None, "Object retrieved from the database was none, data storage error likely"
             program_objs.append(obj)
 
         return program_objs
 
     @classmethod
     def store_new(cls, program: Union[Program, TrackedProgram]):
+        """Stores a single `TrackedProgram` object or subclass into the database.
+
+        Args:
+            program: A `TrackedProgram` object or subclass.
+
+        """
         if program.is_valid():
             try:
                 with cls.StoreData(cls) as db:
@@ -431,6 +494,12 @@ class DataManager:
 
     @classmethod
     def store_many(cls, *program_objs: TrackedProgram):
+        """Stores multiple `TrackedProgram` objects or subclasses into the database.
+
+        Args:
+            *program_objs: A list of `TrackedProgram` objects or subclasses.
+        """
+
         if len(program_objs) == 0:
             return
 
@@ -452,16 +521,44 @@ class DataManager:
             print(f"An error occurred with the database: {e.args[0]}")
 
     @classmethod
-    def get(cls, **and_filters):
-        if len(and_filters.keys()) == 0:
+    def get(cls, **query_params) -> TrackedProgram:
+        """Retrieves a single `TrackedProgram` object from the database based on parameter criteria.
+
+        Args:
+            **query_params: key word arguments that will create a SQL query that will chain AND statements together for
+                each key value pair.
+
+        Returns:
+            A new instance of `TrackedProgram`. If no filtering parameters are provided, it returns None
+
+        Raises:
+            AttributeError: If the `to_obj()` method raises this error as a result of an invalid attribute.
+
+        """
+        if len(query_params.keys()) == 0:
             return None
 
-        query = f"SELECT * FROM program_log WHERE {cls._chain_filter_helper(and_filters, ' AND ')} LIMIT 1;"
+        query = f"SELECT * FROM program_log WHERE {cls._chain_filter_helper(query_params, ' AND ')} LIMIT 1;"
         result = DataManager.query(query, single=True)
         return cls.to_obj(result)
 
     @classmethod
-    def get_many(cls, limit=5, **query_params):
+    def get_many(cls, limit=5, **query_params) -> List[TrackedProgram]:
+        """Retrieves multiple `TrackedProgram` objects from the database based on parameter criteria.
+
+        Args:
+            limit: The number of rows/objects to retrieve. If None, will retrieve all rows
+            **query_params: key word arguments that will create a SQL query that will chain AND statements together for
+                each key value pair.
+
+        Returns:
+            A list of `TrackedProgram` objects that fulfill the parameter criteria
+
+        Raises:
+            AttributeError: If the `to_obj()` method raises this error as a result of an invalid attribute.
+
+        """
+
         query = "SELECT * FROM program_log"
 
         if len(query_params) != 0:
@@ -482,7 +579,16 @@ class DataManager:
         return program_objs
 
     @classmethod
-    def get_latest_save(cls, program_obj):
+    def get_latest_save(cls, program_obj: TrackedProgram):
+        """Loads in the latest save for a `TrackedProgram` object within the past 24 hours. Can use
+        ``TrackedProgram.min_init()`` because only the name of the program is compared.
+
+        Args:
+            program_obj: The `TrackedProgram` object to retrieve.
+
+        Returns:
+            The last saved (within 24 hours) `TrackedProgram` instance.
+        """
         program_saves = DataManager.get_day(datetime.today(), limit=None, name=program_obj.name)
         if not program_saves:
             return None
@@ -496,8 +602,15 @@ class DataManager:
         return program_saves[max_index]
 
     @classmethod
-    def update_pg(cls, pk, **values):
-        # Check value isn't being updated
+    def update_pg(cls, pk: int, **values):
+        """Updates a certain rows columns with new values
+
+        Args:
+            pk: the database row id that corresponds to the row you want to update.
+            **values: key worded arguments for which columns to modify and values to update them to
+
+        """
+        # Check the pk itself isn't being updated
         if "id" in values.keys():
             del values['id']
 
@@ -510,13 +623,34 @@ class DataManager:
             print(f"An error occurred with the database: {e.args[0]}")
 
     @classmethod
-    def id_of_obj(cls, program):
+    def id_of_obj(cls, program: TrackedProgram) -> int:
+        """Retrieves the row pk (primary key) which contains the `TrackedProgram` object
+
+        Args:
+            program: the `TrackedProgram` object to retrieve the pk for
+
+        Returns:
+            An integer that is the row pk
+        """
         obj = cls.get(start_time=program.start_time, name=program.name)
         if obj is not None:
             return obj.db_id
 
     @classmethod
-    def get_date_range(cls, start: datetime, end: datetime, limit=5, **query_params):
+    def get_date_range(cls, start: datetime, end: datetime, limit=5, **query_params) -> List[TrackedProgram]:
+        """Retrieves `TrackedProgram` objects within a certain time span that fulfill the `query_params`
+
+        Args:
+            start: the `datetime` object that represents the starting time cutoff
+            end: the `datetime` object that represents the ending time cutoff
+            limit: The number of rows/objects to retrieve. If None, will retrieve all rows
+            **query_params: key word arguments that will create a SQL query that will chain AND statements together for
+                each key value pair.
+
+        Returns:
+            A list of `TrackedProgram` objects that fulfill the parameter criteria
+
+        """
         epoch_time1 = start.timestamp()
         epoch_time2 = end.timestamp()
 
@@ -547,21 +681,43 @@ class DataManager:
             return []
 
     @classmethod
-    def get_day(cls, day, limit=5, **query_params):
+    def get_day(cls, day: datetime, limit=5, **query_params) -> List[TrackedProgram]:
+        """Retrieves `TrackedProgram` objects that were created between the start of the day and the end of the day
+
+        Args:
+            day: a `datetime` object
+            limit: The number of rows/objects to retrieve. If None, will retrieve all rows
+            **query_params: key word arguments that will create a SQL query that will chain AND statements together for
+                each key value pair.
+
+        Returns:
+            A list of `TrackedProgram` objects that fulfill the parameter criteria
+        """
         start = datetime(day.year, day.month, day.day)
         end = start + timedelta(hours=23, minutes=59, seconds=59)
 
         return cls.get_date_range(start, end, limit, **query_params)
 
     @classmethod
-    def update_pg_times(cls, log_end):
-        for item in log_end:
-            last_save = item.get_latest_save()
-            assert last_save is not None, "Tried to end a running game with no save"
-            cls.update_pg(cls.id_of_obj(last_save), end_time=item.end_time, time_left=item.time_left)
+    def update_latest_pg(cls, program: TrackedProgram):
+        """Updates the latest saves `end_time` and `time_left` with the given `TrackedProgram` object
+
+        Args:
+            program: `TrackedProgram` to update latest save with
+        """
+        last_save = program.get_latest_save()
+        assert last_save is not None, "Tried to end a running game with no save"
+        cls.update_pg(cls.id_of_obj(last_save), end_time=program.end_time, time_left=program.time_left)
 
     @classmethod
     def save_state(cls, program_state, program_manager, state_detector):
+        """Saves the state of all `TrackedProgram` objects into the database
+
+        Args:
+            program_state: a `ProgramStates` object
+            program_manager: a `ProgramManager` object
+            state_detector: a `StateChangeDetector` object
+        """
         print("Saving the current state upon exit...")
         running = program_state.get_curr_running()
         pruned = program_manager.prune_programs(running)
@@ -742,7 +898,8 @@ class StateLogger:
     @classmethod
     def log_end(cls, to_log):
         cls.set_ends(to_log)
-        DataManager.update_pg_times(to_log)
+        for item in to_log:
+            DataManager.update_latest_pg(item)
 
     @classmethod
     def set_starts(cls, items):
@@ -755,6 +912,7 @@ class StateLogger:
             item.end_now()
 
 
+# TODO merge into the DataManager class
 class LoadData:
     # Gets initial states for program
     @classmethod
@@ -801,7 +959,7 @@ def run():
     # Init state detector which keeps track of what programs have just been started or stopped (no saves needed)
     state_detector = StateChangeDetector()
 
-    # Deals with the ending of programs, filtering and blocking (needs access to pg objs from currently running)
+    # Deals with the ending of programs, filtering and blocking (needs access to program objs from currently running)
     program_manager = ProgramManager(program_state)
 
     # Class for all others to access and get currently running/program objs (needs saves to be loaded)
