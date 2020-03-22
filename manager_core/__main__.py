@@ -4,9 +4,9 @@ import manager_core.SettingsParser as SettingsParser
 from manager_core.CurbTheScreen import DataManager, ProgramStates, StateChangeDetector, ProgramManager, StateLogger
 
 
-def init_classes():
-    root_dir_name = SettingsParser.settings.root_dir_name
-    root_dir = SettingsParser.settings.get_base_loc(root_dir_name)
+def init_classes(settings):
+    root_dir_name = settings.root_dir_name
+    root_dir = settings.get_base_loc(root_dir_name)
 
     DataManager.init_db(root_dir)
     # DataManager.reset_db()
@@ -29,9 +29,10 @@ def init_classes():
 def run():
     # Start the db with the right schema
     # Reset any data that is in the db
-    SettingsParser.settings.reload_cache()
+    settings = SettingsParser.settings
+    settings.reload_cache()
 
-    logger, program_state, state_detector, program_manager = init_classes()
+    logger, program_state, state_detector, program_manager = init_classes(settings)
 
     # Before the program is shutdown, currently running programs are updated
     import atexit

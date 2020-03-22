@@ -32,13 +32,13 @@ class Settings:
         @functools.wraps(func)
         def parser():
             self.parsers[func.__name__] = func
+            return func
 
-        parser()
+        return parser()
 
     def get_attr(self, setting):
-        if not self._is_specified(setting):
-            if self._is_optional(setting):
-                return self._get_optional_default(setting)
+        if not self._is_in_file(setting):
+            return self._get_optional_default(setting)
 
         setting_value = self.cached_config[setting]
         if setting in self.parsers.keys():
@@ -54,15 +54,27 @@ class Settings:
             if setting == name:
                 default_val = values[1]
                 return default_val
+        raise LookupError(f"{setting} did not have a value associated with it")
+
+    def _get_optional_names(self):
+        return [setting[0] for setting in self.optional_settings]
 
     def _is_optional(self, setting):
-        return self._get_optional_default(setting) is None
+        try:
+            self._get_optional_default(setting)
+            return True
+        except LookupError as e:
+            return False
 
-    def _is_specified(self, setting):
+    def _is_setting_defined(self, setting):
+        # setting is in either optional or required
+        return setting in self._all_setting_names()
+
+    def _is_in_file(self, setting):
         return setting in self.cached_config.keys()
 
-    def _all_args(self):
-        return {**self.required_settings, **self.optional_settings}
+    def _all_setting_names(self):
+        return self.required_settings + self._get_optional_names()
 
     def _get_parser(self, setting):
         parse_func = self.parsers[setting]
@@ -77,7 +89,10 @@ class Settings:
             self.cached_config = json.load(f)
 
     def update_setting(self, setting, value):
-        self.cached_config[setting] = value
+        if setting in self._all_setting_names():
+            self.cached_config[setting] = value
+        else:
+            raise LookupError(f"{setting} did not have a value associated with it")
 
     def update_setting_reload(self, setting, value):
         self.update_setting(setting, value)

@@ -5,9 +5,6 @@ import pytest
 from manager_core.CurbTheScreen import DataManager, TrackedProgram
 
 
-# Tests to be added
-# TODO test to_objs many
-
 @pytest.fixture(scope="function")
 def store_example(create_db):
     with DataManager.StoreData(DataManager) as db:

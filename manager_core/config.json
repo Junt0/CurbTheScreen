@@ -4,7 +4,7 @@
     "LOOP_TIME": 1,
     "TRACKED_PROGRAMS": {
         "Calculator": 10,
-        "Discord": 10,
+        "Discord": 20,
         "Chrome": 20
     },
     "TESTING": false
