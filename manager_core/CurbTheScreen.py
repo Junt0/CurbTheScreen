@@ -3,12 +3,9 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Union, List
-
 import psutil
-
 import manager_core.SettingsParser as SettingsParser
 import manager_core.Settings as S
-# Is a stripped down program object to differentiate between running programs and given programs to track
 
 
 # TODO add type hints for all classes
@@ -288,7 +285,6 @@ class Program(TrackedProgram):
 # Stores any changes made into the database
 class DataManager:
     """A class that abstracts SQL queries to make dealing with the database easier. Probably not very secure."""
-    path = None
     db_path = None
     base_path = S.Settings.get_base_loc(S.Settings.root_dir_name)
 
@@ -303,16 +299,14 @@ class DataManager:
         """
 
         # Sets the static path for the database depending if its testing (constant found in Settings)
-        if Settings.TESTING:
-            DataManager.path = path / "test_db.sqlite"
         if SettingsParser.settings.get_attr("TESTING"):
             DataManager.db_path = path / "test_db.sqlite"
         else:
             DataManager.db_path = path / "database" / "db.sqlite"
 
         # This creates the sqlite file if it does not exist and initializes it with the proper sql command for use
-        if cls.path.is_file() is False:
-            db_file = cls.path.open(mode="w+")
+        if cls.db_path.is_file() is False:
+            db_file = cls.db_path.open(mode="w+")
             db_file.close()
             cls.reset_db()
 
@@ -323,13 +317,13 @@ class DataManager:
 
         schema_loc = cls.base_path / "database" / "schema.sql"
         with schema_loc.open(mode="r") as script:
-            db = DataManager.get_db()
+            db = DataManager._get_db()
             db.executescript(script.read().strip())
 
     @classmethod
     def _get_db(cls):
         """Gets database connection. Highly recommended to use context managers instead."""
-        db = sqlite3.connect(DataManager.path, detect_types=sqlite3.PARSE_DECLTYPES)
+        db = sqlite3.connect(DataManager.db_path, detect_types=sqlite3.PARSE_DECLTYPES)
 
         db.row_factory = sqlite3.Row
         return db

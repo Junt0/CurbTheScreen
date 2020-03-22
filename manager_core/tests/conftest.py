@@ -1,14 +1,10 @@
-import os
-from pathlib import Path
 from unittest.mock import patch
-
 import pytest
-
 import manager_core.SettingsParser as SettingsParser
-import manager_core.Settings as Settings
+import manager_core.Settings
 from manager_core.CurbTheScreen import DataManager, TrackedProgram, ProgramStates
 
-base_loc = Settings.Settings.get_base_loc(Settings.Settings.root_dir_name)
+base_loc = manager_core.Settings.get_base_loc(manager_core.Settings.root_dir_name)
 SettingsParser.settings.location = base_loc / 'manager_core' / 'tests' / 'test_resources' / 'test_config.json'
 SettingsParser.settings.reload_cache()
 SettingsParser.settings.update_setting("TESTING", True)
