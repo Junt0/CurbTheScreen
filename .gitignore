@@ -5,5 +5,7 @@ env/
 __pycache__
 .vscode/
 venv/
+node_modules/
+docs/_build
 build/
 dist/
