@@ -1,0 +1,11 @@
+{
+    "IS_BUILD": false,
+    "ROOT_DIR_NAME": "CurbTheScreen",
+    "LOOP_TIME": 1,
+    "TRACKED_PROGRAMS": {
+        "Calculator": 10,
+        "Discord": 10,
+        "Chrome": 20
+    },
+    "TESTING": false
+}

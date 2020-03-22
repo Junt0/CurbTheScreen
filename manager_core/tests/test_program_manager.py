@@ -1,8 +1,7 @@
 from unittest.mock import patch
 
 import pytest
-import time
-from manager_core.CurbTheScreen import TrackedProgram, Program, ProgramStates, DataManager, ProgramManager
+from manager_core.CurbTheScreen import Program, ProgramManager
 
 
 @pytest.fixture(scope="function")

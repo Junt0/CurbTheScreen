@@ -6,8 +6,9 @@ from typing import Union
 import psutil
 from pathlib2 import Path
 
+import manager_core.SettingsParser as SettingsParser
+import manager_core.Settings as S
 # Is a stripped down program object to differentiate between running programs and given programs to track
-from manager_core import Settings
 
 
 # TODO add type hints for all classes
@@ -180,7 +181,7 @@ class TrackedProgram:
         return DataManager.get_latest_save(self)
 
     def __str__(self):
-        return f"{self.name} S:{self.start_time}  E:{self.end_time}  R:{self.time_left()}"
+        return f"{self.name} S:{self.start_time}  E:{self.end_time}  R:{self.time_left}"
 
     def __eq__(self, other):
         name_equal = other.name == self.name
@@ -220,29 +221,31 @@ class Program(TrackedProgram):
 
 # Stores any changes made into the database
 class DataManager:
-    path = None
+    db_path = None
+    base_path = S.Settings.get_base_loc(S.Settings.root_dir_name)
 
     @classmethod
     def init_db(cls, path: Path):
-        if Settings.TESTING:
-            DataManager.path = path / "test_db.sqlite"
+        if SettingsParser.settings.get_attr("TESTING"):
+            DataManager.db_path = path / "test_db.sqlite"
         else:
-            DataManager.path = path / "database" / "db.sqlite"
+            DataManager.db_path = path / "database" / "db.sqlite"
 
-        if cls.path.is_file() is False:
-            db_file = cls.path.open(mode="w+")
+        if cls.db_path.is_file() is False:
+            db_file = cls.db_path.open(mode="w+")
             db_file.close()
             cls.reset_db()
 
     @classmethod
     def reset_db(cls):
-        with open(Settings.SCHEMA_LOC, "r") as script:
+        schema_loc = cls.base_path / "database" / "schema.sql"
+        with schema_loc.open(mode="r") as script:
             db = DataManager.get_db()
             db.executescript(script.read().strip())
 
     @classmethod
     def get_db(cls):
-        db = sqlite3.connect(DataManager.path, detect_types=sqlite3.PARSE_DECLTYPES)
+        db = sqlite3.connect(DataManager.db_path, detect_types=sqlite3.PARSE_DECLTYPES)
 
         db.row_factory = sqlite3.Row
         return db
@@ -605,7 +608,7 @@ class ProgramStates:
             pg.elapsed_time += self.get_loop_time()
 
     def get_loop_time(self):
-        return Settings.LOOP_TIME
+        return SettingsParser.settings.get_attr("LOOP_TIME")
 
     def reset(self):
         # Resets the PIDS of the program objects and removes all from currently running
@@ -614,10 +617,7 @@ class ProgramStates:
             pg.PIDS = []
 
     def tracked_from_settings(self):
-        programs = []
-        for program in Settings.TRACKED_PROGRAMS:
-            programs.append(Program.min_init(program[0], program[1]))
-        return programs
+        return SettingsParser.settings.get_attr("TRACKED_PROGRAMS")
 
     def init_program_objs(self):
         for program in LoadData.saves_program_init(self.tracked_from_settings()):
@@ -708,50 +708,3 @@ class LoadData:
                 saves.append(pg)
 
         return saves
-
-
-def run():
-    # Start the db with the right schema
-    # Reset any data that is in the db
-    DataManager.init_db(Settings.get_base_loc(Settings.ROOT_DIR_NAME))
-    # DataManager.reset_db()
-
-    program_state = ProgramStates()
-
-    # Init state detector which keeps track of what programs have just been started or stopped (no saves needed)
-    state_detector = StateChangeDetector()
-
-    # Deals with the ending of programs, filtering and blocking (needs access to pg objs from currently running)
-    program_manager = ProgramManager(program_state)
-
-    # Class for all others to access and get currently running/program objs (needs saves to be loaded)
-    program_manager.update_blocked()
-    logger = StateLogger(program_state)
-
-    # Before the program is shutdown, currently running programs are updated
-    import atexit
-    atexit.register(DataManager.save_state, program_state, program_manager, state_detector)
-
-    while True:
-        # Removes programs that shouldn't be running
-        running = program_state.get_curr_running()
-        print(str([pg.name for pg in running]))
-        pruned = program_manager.prune_programs(running)
-
-        # State detector gets which programs should be updated
-        state_detector.update_states(pruned)
-        started = state_detector.get_started()
-        ended = state_detector.get_stopped()
-
-        # Logger keeps ProgramStates and DB with most current info
-        logger.log_end(ended)
-        logger.log_started(started)
-
-        # Update program manager with
-        program_state.update_elapsed()
-        program_manager.update_blocked()
-        time.sleep(Settings.LOOP_TIME)
-
-
-if __name__ == '__main__':
-    run()

@@ -13,17 +13,6 @@ setup(
     install_requires=[
         'psutil==5.6.7',
         'pytest==5.3.5',
-        'pathlib2==2.3.5'
+        'pathlib2==2.3.5',
     ],
-
-    data_files=[
-        ('database', [
-            'database/schema.sql',
-        ]),
-    ],
-
-    console=[
-        'CurbTheScreen.py',
-    ],
-
 )
