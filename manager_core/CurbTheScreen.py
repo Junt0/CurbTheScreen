@@ -318,7 +318,7 @@ class DataManager:
     def reset_db(cls):
         """Resets all rows of the database by calling the script that resets the schema. This is an irreversible
         operation."""
-
+        # TODO put all paths in one file to prevent stuff getting messed up between repo and build versions
         schema_loc = cls.base_path / "database" / "schema.sql"
         with schema_loc.open(mode="r") as script:
             db = DataManager._get_db()

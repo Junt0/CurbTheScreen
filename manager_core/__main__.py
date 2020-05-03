@@ -1,6 +1,5 @@
 import sys
 import os
-#sys.path.append('/home/kalin/Coding/Github/CurbTheScreen/')
 
 import time
 import manager_core.SettingsParser as SettingsParser

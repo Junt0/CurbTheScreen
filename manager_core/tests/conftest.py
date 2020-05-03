@@ -1,14 +1,15 @@
 from unittest.mock import patch
 import pytest
 import manager_core.SettingsParser as SettingsParser
-import manager_core.Settings
+import manager_core.Settings as S
 from manager_core.CurbTheScreen import DataManager, TrackedProgram, ProgramStates
 import os
 
-base_loc = manager_core.Settings.get_base_loc(manager_core.Settings.root_dir_name)
+base_loc = S.Settings.get_base_loc("CurbTheScreen")
 SettingsParser.settings.location = base_loc / 'manager_core' / 'tests' / 'test_resources' / 'test_config.json'
 SettingsParser.settings.reload_cache()
 SettingsParser.settings.update_setting("TESTING", True)
+DataManager.base_path = S.Settings.get_base_loc("manager_core")
 
 
 @pytest.fixture(scope="session")
@@ -60,7 +61,7 @@ def settings_fixture(create_test_config_file):
         "NOT_DEFINED": "some value",
     }
 
-    settings = manager_core.Settings(required_keys, optional_keys)
+    settings = S.Settings(required_keys, optional_keys)
     settings.location = create_test_config_file
     settings.cached_config = store_settings
     settings.update_config()

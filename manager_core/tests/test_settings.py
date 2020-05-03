@@ -1,6 +1,6 @@
 import json
 import pytest
-from manager_core import Settings
+from manager_core.Settings import Settings
 
 
 def test_update_config(create_test_config_file):

@@ -7,7 +7,7 @@ from pathlib import Path
 class Settings:
     root_dir_name = "CurbTheScreen"
     location = None
-    is_build = True
+    is_build = False
 
     def __init__(self, required: list, optional: list):
         self.required_settings = required
