@@ -1,11 +1,8 @@
 {
-    "IS_BUILD": false,
-    "ROOT_DIR_NAME": "CurbTheScreen",
+    "IS_BUILD": true,
+    "ROOT_DIR_NAME": "CTS",
     "LOOP_TIME": 1,
     "TRACKED_PROGRAMS": {
-        "Calculator": 10,
-        "Discord": 20,
-        "Chrome": 20
-    },
-    "TESTING": false
+        "SomeProgramName": 1000
+    }
 }

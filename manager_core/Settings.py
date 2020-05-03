@@ -7,6 +7,7 @@ from pathlib import Path
 class Settings:
     root_dir_name = "CurbTheScreen"
     location = None
+    is_build = True
 
     def __init__(self, required: list, optional: list):
         self.required_settings = required
@@ -24,7 +25,10 @@ class Settings:
 
         p = ""
         for part in range(0, index + 1):
-            p += f'{cur_dir_path.parts[part]}/'
+            if part == 0:
+                p += "/"
+            else:
+                p += f'{cur_dir_path.parts[part]}/'
 
         return Path(p)
 

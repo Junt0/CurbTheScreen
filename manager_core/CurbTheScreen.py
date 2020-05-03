@@ -286,7 +286,7 @@ class Program(TrackedProgram):
 class DataManager:
     """A class that abstracts SQL queries to make dealing with the database easier. Probably not very secure."""
     db_path = None
-    base_path = S.Settings.get_base_loc(S.Settings.root_dir_name)
+    base_path = None
 
     @classmethod
     def init_db(cls, path: Path):
@@ -303,6 +303,10 @@ class DataManager:
             DataManager.db_path = path / "test_db.sqlite"
         else:
             DataManager.db_path = path / "database" / "db.sqlite"
+
+        # Create the directory where the file should exist if it does not exist
+
+        DataManager.db_path.parents[0].mkdir(parents=True, exist_ok=True)
 
         # This creates the sqlite file if it does not exist and initializes it with the proper sql command for use
         if cls.db_path.is_file() is False:

@@ -1,7 +1,11 @@
-import time
+import sys
+import os
+#sys.path.append('/home/kalin/Coding/Github/CurbTheScreen/')
 
+import time
 import manager_core.SettingsParser as SettingsParser
 from manager_core.CurbTheScreen import DataManager, ProgramStates, StateChangeDetector, ProgramManager, StateLogger
+from datetime import datetime
 
 
 def init_classes(settings):
@@ -30,7 +34,6 @@ def run():
     # Start the db with the right schema
     # Reset any data that is in the db
     settings = SettingsParser.settings
-    settings.reload_cache()
 
     logger, program_state, state_detector, program_manager = init_classes(settings)
 
@@ -41,7 +44,10 @@ def run():
     while True:
         # Removes programs that shouldn't be running
         running = program_state.get_curr_running()
-        print(str([pg.name for pg in running]))
+        
+        if running != []:
+            print(f"{[pg.name for pg in running]} {datetime.now()}")
+
         pruned = program_manager.prune_programs(running)
 
         # State detector gets which programs should be updated
