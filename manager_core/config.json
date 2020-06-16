@@ -2,10 +2,20 @@
     "IS_BUILD": false,
     "ROOT_DIR_NAME": "CurbTheScreen",
     "LOOP_TIME": 1,
-    "TRACKED_PROGRAMS": {
-        "Calculator": 10,
-        "Discord": 20,
-        "Chrome": 20
-    },
-    "TESTING": false
+    "GROUPS": {
+        "group1": {
+            "TYPE": "default",
+            "TRACKED_PROGRAMS": {
+                "Calculator": 1000,
+                "Discord": 1000,
+                "Chrome": 1000
+            }
+        },
+
+        "group2": {
+            "TYPE": "totaltime",
+            "total_time": 1000,
+            "TRACKED_PROGRAMS": ["Calculator", "Discord", "Chrome"]
+        }
+    }
 }
