@@ -12,7 +12,7 @@ setup(
     # https://setuptools.readthedocs.io/en/latest/setuptools.html#declaring-dependencies
     install_requires=[
         'psutil==5.6.7',
-        'pytest==5.3.5',
+        'pytest==9.0.3',
         'pathlib2==2.3.5'
     ],
 
